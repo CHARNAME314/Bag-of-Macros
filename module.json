@@ -1,29 +1,29 @@
 {
-  "id": "test",
-  "title": "Test - An Example FVTT Module",
-  "description": "A simple module created as a demo for working in the Foundry Virtual Tabletop framework.",
-  "authors": [
-    {
-    "name": "Andy"
+    "id": "charnames-bag-of-macros",
+    "title": "CHARNAME's Bag of Macros",
+    "description": "Misc macros for the mad masses",
+    "authors": [
+        {
+            "name": "Andy"
+        }
+    ],
+    "version": "1.0.8",
+    "socket": true,
+    "esmodules": [
+        "dist/main.js"
+    ],
+    "languages": [
+        {
+            "lang": "en",
+            "name": "English",
+            "path": "languages/en.json"
+        }
+    ],
+    "styles": [
+        "styles/test.css"
+    ],
+    "compatibility": {
+        "minimum": "10",
+        "verified": "11"
     }
-  ],
-  "version": "1.0.8",
-  "socket": true,  
-  "esmodules": [
-    "dist/main.js"
-  ],  
-  "languages": [
-    {
-      "lang": "en",
-      "name": "English",
-      "path": "languages/en.json"
-    }
-  ],  
-  "styles": [
-    "styles/test.css"
-  ],  
-  "compatibility": {
-    "minimum": "10",
-    "verified": "11"
-  }
 }

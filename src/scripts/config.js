@@ -1,6 +1,6 @@
 export function setConfig() {
-    setProperty(CONFIG, "test", {
-        "module": "test",
+    setProperty(CONFIG, "charnames", {
+        "module": "charnames-bag-of-macros",
 		"automations": {
 			"Blight": {
                 "name": "Blight",

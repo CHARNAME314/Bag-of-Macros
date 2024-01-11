@@ -5,7 +5,7 @@ import * as sf from "./socket-functions.js"
 export let socket
 
 Hooks.once("socketlib.ready", () => {
-	socket = socketlib.registerModule("test")
+	socket = socketlib.registerModule("charnames-bag-of-macros")
 	socket.register("setActiveEffectDelete", sf.setActiveEffectDelete)
 	socket.register("setAmbientLightCreate", sf.setAmbientLightCreate)	
 	socket.register("setAmbientLightDelete", sf.setAmbientLightDelete)
@@ -17,6 +17,6 @@ Hooks.on("dnd5e.restCompleted", (actor, data) => {
 	macros.songOfHealing.main(actor, data)
 })
 
-globalThis['test'] = {
+globalThis['CHARNAME'] = {
     macros
 }
