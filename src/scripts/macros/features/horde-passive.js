@@ -1,10 +1,35 @@
 import {cloudSpellNames} from "../../constants.js"
 
+const getAoeOverlapPerc = async (args) => {
+	const creatureCoords = await getCreatureCoords(args[0].actor.token)
+	const templateCoords = await getTemplateCoords(args[0].templateId) ?? false
+	if (!templateCoords) return 0
+	const overlap = creatureCoords.intersection(templateCoords)
+	return overlap.size / creatureCoords.size
+}
+const getCreatureCoords = async (tokenDoc) => {
+	const gridSize = canvas.scene.grid.size
+	let set = new Set()
+	let position = ""
+	for (let i = 0; i < tokenDoc.height; i++) {
+		for (let j = 0; j < tokenDoc.width; j++) {
+			position = (tokenDoc.x + gridSize*i).toString() + "." + (tokenDoc.y + gridSize*j).toString() 
+			set.add(position)
+		}
+	}
+	return set
+}
 const getNewDamage = async(hpDamage, hordeCount, multiplier, hasAreaTarget) => {
 	return hasAreaTarget ? Math.floor(hpDamage * hordeCount * multiplier) : hpDamage
 }
-const isSaveFailure = async ({item}) => {
-	if (!item.system.hasAreaTarget) {
+const getTemplateCoords = async (templateId) => {
+	const templateIdStr = "MeasuredTemplate." + templateId
+	return canvas.grid.highlightLayers[templateIdStr].positions
+}
+const isSaveFailure = async ({args, item}) => {
+	const hasAreaTarget = item.system.hasAreaTarget || cloudSpellNames.includes(item.name)
+	console.log(await getAoeOverlapPerc(args))
+	if (!item.system.hasAreaTarget || await getAoeOverlapPerc(args) <= .666) {
 		Hooks.once("createActiveEffect", (effect) => {			
 			effect.delete()
 		})
@@ -18,23 +43,24 @@ const preTargetDamageApplication = async ({actor, args, item, workflow, token}) 
 	const liveTokenDoc = await fromUuid(token.document.uuid)
 	const hpDamage = workflow.damageItem.hpDamage
 	const hasAreaTarget = item.system.hasAreaTarget || cloudSpellNames.includes(item.name)
-	if (hpDamage > 0) setHpUpdateEffects(actor, hpDamage, hordeItem, hordeItemUses, hordeItemUsesMax, hasAreaTarget, workflow, liveTokenDoc)
+	if (hpDamage > 0) setHpUpdateEffects(actor, hpDamage, hordeItem, hordeItemUses, hordeItemUsesMax, hasAreaTarget, workflow, liveTokenDoc, args)
 }
-const setHpUpdateEffects = async (actor, hpDamage, hordeItem, hordeItemUses, hordeItemUsesMax, hasAreaTarget, workflow, liveTokenDoc) => {
-	const aoeOverlapPerc = .66
-	//.66 is placeholder for area of effect overlap percentage function
+const setHpUpdateEffects = async (actor, hpDamage, hordeItem, hordeItemUses, hordeItemUsesMax, hasAreaTarget, workflow, liveTokenDoc, args) => {
+	const aoeOverlapPerc = await getAoeOverlapPerc(args)
 	const newHpDamage = await getNewDamage(hpDamage, hordeItemUses, aoeOverlapPerc, hasAreaTarget)
 	workflow.damageItem.hpDamage = newHpDamage
 	setPostDamageUpdates(actor, newHpDamage, liveTokenDoc, hordeItem, hordeItemUsesMax)
 }
 const setLiveTokenDocUpdates = async (texture, hordeItem, hordeItemUsesMax, multiplier, liveTokenDoc, shouldReduce, tokenSizeNum) => {
-		await warpgate.wait(4000)	
-		setSequencer(liveTokenDoc)
-		await warpgate.wait(200)		
 		hordeItem.update({"system.uses.value": hordeItemUsesMax * multiplier})
 		if (tokenSizeNum > 2 && shouldReduce) {
-			liveTokenDoc.actor.update({"system.traits.size": Object.keys(CONFIG.DND5E.actorSizes)[tokenSizeNum - 1]})
-			liveTokenDoc.update({"width": tokenSizeNum - 2, "height": tokenSizeNum - 2})	
+			await warpgate.wait(4000)	
+			setSequencer(liveTokenDoc)
+			await warpgate.wait(200)	
+			if (liveTokenDoc.actor.system.traits.size != "grg" && liveTokenDoc.width <= 4 && liveTokenDoc.width <= 4) {
+				liveTokenDoc.actor.update({"system.traits.size": Object.keys(CONFIG.DND5E.actorSizes)[tokenSizeNum - 1]})
+			}
+			liveTokenDoc.update({"width": liveTokenDoc.width - 1, "height": liveTokenDoc.width - 1})	
 		}
 		liveTokenDoc.update({"texture.src": texture})
 }
