@@ -60,7 +60,7 @@ export const getSpawnLocation = async (spawnIconPath, size, interval, tokenUuid,
 	}
 }
 export const getTemplatesInRange = (templates, gridSize, gridScale, range, x1, y1) => {
-	//will need to add handling later for none sphere/circle templates
+	//gets templates where center of template within range of a cast template
 	return templates.filter(template => {
 		const [a, b] = [x1 - template.x, y1 - template.y]
 		const c  = Math.sqrt(Math.pow(a,2) + Math.pow(b,2)) 
@@ -68,6 +68,13 @@ export const getTemplatesInRange = (templates, gridSize, gridScale, range, x1, y
 		const templateRangeModified = template.distance / gridScale	
 		const itemRangeModified = range / gridScale		
 		return templateCentersDistance < templateRangeModified + itemRangeModified
+	})
+}
+export const getTemplatesWithOverlap = (eligibleTemplates, itemTemplatePositions) => {
+	return eligibleTemplates.filter(template => {
+		const gridTemplateId = "MeasuredTemplate." + template.id
+		const templatePositions = canvas.grid.highlightLayers[gridTemplateId]?.positions ?? new Set("-1")
+		return itemTemplatePositions.intersection(templatePositions).size > 0
 	})
 }
 export const getTokensInRange = async (tokens, gridSize, gridScale, itemRange, x1, y1) => {
@@ -149,7 +156,7 @@ export const setCrosshairConfigs = async (tokenUuid, itemRange) => {
 	})	
 	canvas.tokens.activate()
 }
-export const setTemplateDispels = async (x, y, name) => {
+export const setTemplateDispels = async (x, y, name, itemTemplatePositions) => {
 	const dnd5eFlaggedTemplates = canvas.scene.templates.filter(template => template.flags.dnd5e)
 	const potentialTemplates = dnd5eFlaggedTemplates.filter(template => {
 		const originName = fromUuidSync(template.flags.dnd5e.origin).name
@@ -160,5 +167,6 @@ export const setTemplateDispels = async (x, y, name) => {
 		}
 	})
 	const templatesInRange = getTemplatesInRange(potentialTemplates, canvas.scene.grid.size, canvas.scene.grid.distance, 60, x, y)
-	templatesInRange.map(template => {socket.executeAsGM("setMeasuredTemplateDelete", template.uuid)})
+	const templatesWithOverlap = getTemplatesWithOverlap(templatesInRange, itemTemplatePositions)
+	templatesWithOverlap.map(template => {socket.executeAsGM("setMeasuredTemplateDelete", template.uuid)})
 }

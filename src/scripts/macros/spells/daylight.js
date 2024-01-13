@@ -1,26 +1,3 @@
-//Logic
-//1.  Menu comes up that player chooses between creature or environment.  Not going to worry about objects for now, if ever
-//2.  If creature, we put on an ATL active effect.  Could theoretically add some extra logic to control emission angle, but won't worry about that for now
-//3.  If environment, player is given option to select a point on the ground
-//4.  AmbientLightDocument is created at the x/y from the chosen point
-//5.  Stretch goal - figure out how to dispel the darkness spell upon contact with Daylight
-
-//TODO:
-//look into dispeling darkness
-//get all templates in range on map
-////can we account for templates that would be behind walls?
-////might need to get array of all parts of the grid it touches to do anything useful
-//get templates in range and see if any part overlaps 
-//check between origin of spell and target location when comparing and make sure there is nothing blocking them like a wall
-//set up a hook to make sure no darkness spells are cast within the main aoe
-//need to account for creatures with darkness cast on them specifically
-//need to make sure daylight effect aura cast on a creature is also dispelling darkness as they move 
-
-//More TODO (2023.11.30):
-//account for spell cast on creature and treat it like an aura in regards to the dispel
-//account for walls blocking the aoe's dispel ability
-//make sure everything works on player side
-
 import {getDialogueButtonType, setActiveEffects, setTemplateDispels} from "../../helper-functions.js"
 import {setAreaEffectDeleteHook} from "../../hooks.js"
 import {socket} from "../../index.js"
@@ -67,12 +44,14 @@ const getIconPaths = (buttonName) => {
 			break
 	}
 }
-const setAreaChoiceEffects = async (templateUuid, templateEffect, tokenActorUuid, itemUuid) => {
-	const [x, y] = await setTemplateEffects(templateUuid, templateEffect)
+const setAreaChoiceEffects = async (templateUuid, templateEffect, tokenActorUuid, itemUuid, positions) => {
+	console.log("setAreaChoiceEffects positions")
+	console.log(positions)
+	const [x, y] = await setTemplateEffects(templateUuid, templateEffect, positions)
 	const lightParams = {"x": x, "y": y, "config": {"bright": 60, "dim": 120, "attenuation": .4}}
 	const [sanitizedLight] = await socket.executeAsGM("setAmbientLightCreate", lightParams)
 	const [effect] = await setActiveEffects([tokenActorUuid], await getEffectOriginData(itemUuid, sanitizedLight._id))	
-	await setAreaEffectDeleteHook(60, x, y, ["Darkness"], 9, effect)
+	await setAreaEffectDeleteHook(60, x, y, ["Darkness"], 9, effect, positions)
 }
 const setEffectsSequencer = async (x, y, scale, token) => {
 	if (!token) {
@@ -108,8 +87,10 @@ const setSpellEffects = async ({speaker, actor, token, character, item, args, sc
 		const isAreaChoice = await setInitChoice(item.uuid)
 		if (!isAreaChoice) return false
 	} else if (args[0].tag == "OnUse" && args[0].macroPass == "postActiveEffects") {
+		const templateId = "MeasuredTemplate." + args[0].templateId 
+		const templatePositions = canvas.grid.highlightLayers[templateId].positions
 		const templateEffect = actor.effects.find(effect => effect.name == "Daylight Template")
-		await setAreaChoiceEffects(args[0].templateUuid, templateEffect, token.document.actor.uuid, item.uuid)
+		await setAreaChoiceEffects(args[0].templateUuid, templateEffect, token.document.actor.uuid, item.uuid, templatePositions)
 	} else if (args[0] == "off")  {
 		const lastArg = args[args.length - 1]
 		await socket.executeAsGM("setAmbientLightDelete", lastArg.efData.flags.castData.daylight.lightId)
@@ -117,11 +98,10 @@ const setSpellEffects = async ({speaker, actor, token, character, item, args, sc
 		return false
 	}
 }
-const setTemplateEffects = async (templateUuid, templateEffect) => {
+const setTemplateEffects = async (templateUuid, templateEffect, templatePositions) => {
 	const template = await fromUuid(templateUuid)
 	await setEffectsSequencer(template.x, template.y, 7, false)
-	await setTemplateDispels(template.x, template.y, "Darkness")
-	
+	await setTemplateDispels(template.x, template.y, "Darkness", templatePositions)
 	templateEffect.delete()
 	return [template.x, template.y]
 }
