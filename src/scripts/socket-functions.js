@@ -15,8 +15,8 @@ export const setMeasuredTemplateDelete = async (templateUuid) => {
 	canvas.tokens.activate()
 	return deletedMeasuredTemplate
 }
-export const setActiveEffectDelete = async (ownerActor, effectId) => {
-	const [deleteEffect] = ownerActor.effects.filter(effect => effect._id == effectId)
+export const setActiveEffectDelete = async (ownerActor, effectId) => {	
+	const [deleteEffect] = ownerActor.effects.filter(effect => effect._id == effectId)	
 	return await ownerActor.deleteEmbeddedDocuments("ActiveEffect", [deleteEffect._id])
 	//can probably be improved to go back to whatever layer you had selected before, even if not token
 }
