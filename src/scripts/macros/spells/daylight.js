@@ -7,7 +7,7 @@ const getEffectOriginData = async (originUuid, lightId) => {
 		name: `Daylight`, 
 		icon: "icons/magic/air/weather-sunlight-sky.webp", 
 		origin: originUuid,
-		changes: [{key: "macro.execute", mode: 0, value: "function.test.macros.daylight.setSpellEffects"}],
+		changes: [{key: "macro.execute", mode: 0, value: "function.CHARNAME.macros.daylight.setSpellEffects"}],
 		"flags.castData.daylight.lightId": lightId,
 		"flags.dae.showIcon": false,		
 		"flags.dae.specialDuration": ["shortRest", "longRest"],
@@ -45,8 +45,6 @@ const getIconPaths = (buttonName) => {
 	}
 }
 const setAreaChoiceEffects = async (templateUuid, templateEffect, tokenActorUuid, itemUuid, positions) => {
-	console.log("setAreaChoiceEffects positions")
-	console.log(positions)
 	const [x, y] = await setTemplateEffects(templateUuid, templateEffect, positions)
 	const lightParams = {"x": x, "y": y, "config": {"bright": 60, "dim": 120, "attenuation": .4}}
 	const [sanitizedLight] = await socket.executeAsGM("setAmbientLightCreate", lightParams)
