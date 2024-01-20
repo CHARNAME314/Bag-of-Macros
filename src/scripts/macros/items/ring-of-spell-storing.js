@@ -1,84 +1,64 @@
-//ring of spell storing
-//use ability and you have two choices: add spell to ring or use spell already on ring
-//add spell on ring will make a dynamic list for what to add to the ring
-////selection will then add some flags to the ring to give us the spell name, uuid, icon, and spell level
-////might add this info to the description so you know what's on it 
-//use spell from ring will bring up a prompt to choose what spell you want to cast
-////spell will temporarily be copied over into caster's spellbook (probably as an innate spell) and then cast and then deleted
-////make sure deletion of spell item happens when item is cast (or if casting fails).  Make sure the inventory on the ring isn't changed until the spell is actually cast.
-//note to self: do the second part first as it will be more challenging I'm sure
-//also, need to add a button that clears the spells on the ring and resets it 
-
 //TODO:
-//Add template macro call
-
-//where I left off: working on adding spells
+//add reaction handling for spells like shield?  Or add them directly to the character sheet?
 
 import {getDialogueButtonType} from "../../helper-functions.js"
-//refactor how you're going to store strings
-import {ringOfSpellStoringInitChoices, ringOfSpellStoringInitHeader} from "../../strings.js"
+import {ringOfSpellStoring as s} from "../../strings/items.js"
 
-const addSpells = async (tokenActor, item) => {
+const addSpell = async (tokenActor, item) => {
+	if (item.flags.charname.ringOfSpellStoring.slotsUsed == 5) {
+		ui.notifications.info(s.addSpellErr)
+		return false
+	}	
 	const actors = await getLiveActors()
-	const eligibleSpells = await getEligibleSpells(actors)
-	console.log("eligibleSpells")
-	console.log(eligibleSpells)	
-	//prompt a dialog to pick who you want to get the spell from (buttons)
-	//this choice will prompt another dialog (radio?  select?) for you to choose your spell from
-	//this choice will add a flag to the ring with the appropriate data unless the ring is already too full (will prompt message)
+	const eligibleSpellsByChar = await getEligibleSpells(actors)	
+	const charChoices = eligibleSpellsByChar.map(character => character.origin).toSorted()
+	const charChoice = await getDialogueButtonType(charChoices, {width: 400, height: 150}, s.charHeader, getCharIconPaths, 60, 60, eligibleSpellsByChar)
+	const levelChoices = await getLevelChoices(charChoice, tokenActor, eligibleSpellsByChar, item)
+	const levelChoice = await getDialogueButtonType(levelChoices, {width: 400, height: 150}, s.levelHeader, getLevelIconPaths, 60, 60)
+	const levelChoiceInt = s.levelLabels.indexOf(levelChoice.value) + 1
+	const [spellChoices, spellIcons] = await getSpellChoices(charChoice, eligibleSpellsByChar, levelChoiceInt)
+	const spellChoice = await getSpellChoice(spellChoices, s.spellHeader, getSpellIconPaths, spellIcons)
+	updateRingItem(item, charChoice.value, levelChoiceInt, spellChoice.value, eligibleSpellsByChar)
 }
-const castSpell = async (tokenActor) => {
-	const spellData = await getSpellToCast()
-	const [tempItem] = await createTempItem(spellData, tokenActor)
-	console.log("tempItem")
-	console.log(tempItem)	
+const castSpell = async (tokenActor, liveItem) => {
+	const spellData = await getSpellToCast(liveItem)	
+	const [tempItem] = await createTempItem(spellData, tokenActor)	
 	Hooks.once("dnd5e.preUseItem", (item, config) => {
-		console.log("PRE USE ITEM")
-		if (item.uuid != tempItem.uuid) return false
-		console.log("useItem item")
-		console.log(item)
-		console.log("useItem config")
-		console.log(config)	
+		if (item.uuid != tempItem.uuid) return false	
 		config.consumeResource = false
 		config.consumeSpellSlot = false
 		config.consumeUsage = false
-		//update to spellLevel when done testing
-		config.slotLevel = 9
+		config.slotLevel = spellData.level	
+		config.system.prof._baseProficiency = spellData.prof			
 	})	
-	const workflow = await MidiQOL.completeItemUse(tempItem)
-	//don't forget to call the template macro here!
-	console.log("workflow")
-	console.log(workflow)
-	if (workflow) await deleteTempItem(workflow)	
+	const workflow = await MidiQOL.completeItemUse(tempItem, liveItem)
+	const template = await fromUuid(workflow.templateUuid) ?? false
+	if (template) template.callMacro("whenCreated", {asGM: true})
+	if (workflow) await deleteTempItem(template, liveItem, tempItem, spellData, tokenActor)	
 }
 const createTempItem = async (spellData, tokenActor) => {
-	const sourceItem = await fromUuid(spellData.uuid)
-	console.log("tokenActor")
-	console.log(tokenActor)
-	console.log("spellData")
-	console.log(spellData)	
-	console.log("sourceItem")
-	console.log(sourceItem)		
-	//need to account for og casters spell save dc, spell attack bonus, and spellcasting ability
+	const sourceItem = await fromUuid(spellData.uuid)	
 	const itemData = mergeObject(duplicate(sourceItem.toObject(false)), {
 		name: "Ring of Spell Storing: " + spellData.name,
-		"system.preparation.mode": "innate"
+		"system.ability": "none",
+		"system.attackBonus": spellData.attackBonus,
+		"system.preparation.mode": "innate",
+		"system.save.dc": spellData.dc,
+		"system.save.scaling": "flat"
 	}, {overwrite: true, inlace: true, insertKeys: true, insertValues: true})
-	
-
-	
-	console.log("itemData")
-	console.log(itemData)	
 	return await tokenActor.createEmbeddedDocuments("Item", [itemData])
 }
-const deleteTempItem = async (workflow) => {
-	const template = await fromUuid(workflow.templateUuid) ?? {}
-	console.log("template")
-	console.log(template)		
-	//remove spell data from ring
-	//will add this in after I finish the 'add to ring' part
-	
-	if (template.flags.templatemacro.whenCreated) {
+const deleteTempItem = async (template, liveItem, tempItem, spellData, tokenActor) => {	
+	setDeleteItemFlags(liveItem, spellData)
+	const concEffect = await MidiQOL.getConcentrationEffect(tokenActor) ?? false	
+	if (concEffect) {
+		Hooks.once("deleteActiveEffect", (deletedEffect) => {
+			if (deletedEffect.uuid == concEffect.uuid) {
+				const tempItemExists = fromUuidSync(tempItem.uuid)
+				if (tempItemExists) tempItem.delete()
+			}
+		})
+	} else if (!concEffect && template) {
 		Hooks.once("deleteMeasuredTemplate", (deletedTemplate) => {
 			if (deletedTemplate.uuid == template.uuid) {
 				const tempItemExists = fromUuidSync(tempItem.uuid)
@@ -92,13 +72,17 @@ const deleteTempItem = async (workflow) => {
 const getAttackBonus = (actor, item, ability) => {
 	const isRangedAttack = item.system.actionType == "rsak"
 	const isMeleeAttack = item.system.actionType == "msak"
-	if (!isRangedAttack || !isMeleeAttack) {
+	if (!isRangedAttack && !isMeleeAttack) {
 		return 0
-	} else if (isRangedAttack) {
-		return actor.system.abilities[ability].mod + actor.system.bonuses.rsak.attack
+	} else if (isRangedAttack) {		
+		return parseInt(actor.system.abilities[ability].mod) + parseInt(actor.system.bonuses.rsak.attack)
 	} else if (isMeleeAttack) {
-		return actor.system.abilities[ability].mod + actor.system.bonuses.msak.attack
+		return parseInt(actor.system.abilities[ability].mod) + parseInt(actor.system.bonuses.msak.attack)
 	}
+}
+const getCharIconPaths = (choice, iconData) => {	
+	const match = iconData.find(item => item.origin == choice)
+	return match.icon
 }
 const getEligibleSpells = async (actors) => {
 	return actors.map(actor => {
@@ -127,7 +111,7 @@ const getEligibleSpells = async (actors) => {
 			}		
 			return [...items, ...arr]
 		}, [])
-		return {origin: actor.prototypeToken.name, spells: actorSpells}
+		return {origin: actor.prototypeToken.name, icon: actor.prototypeToken.texture.src, spells: actorSpells}
 	})
 }
 const getHighestSpellLevel = (spells) => {
@@ -141,58 +125,196 @@ const getHighestSpellLevel = (spells) => {
 }
 const getInitIconPaths = (buttonName) => {
 	switch (buttonName) {
-		case "Add Spells":
+		case s.initChoices[0]:
 			return "icons/magic/defensive/shield-barrier-flaming-diamond-teal-purple.webp"
 			break
-		case "Cast Spell":
+		case s.initChoices[1]:
 			return "icons/magic/defensive/shield-barrier-flaming-pentagon-teal-purple.webp"
 			break
-		case "Empty Spells":
+		case s.initChoices[2]:
 			return "icons/magic/defensive/shield-barrier-glowing-triangle-teal-purple.webp"
 			break			
 	}
+}
+const getLevelChoices = async (charChoice, tokenActor, eligibleSpellsByChar, item) => {
+	const slotsRemaining = 5 - item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
+	const character = eligibleSpellsByChar.find(character => character.origin == charChoice.value)
+	const eligibleLevels = character.spells.map(spell => spell.level).filter(level => level <= slotsRemaining)
+	const spellLevels = new Set(eligibleLevels)			
+	return Array.from(spellLevels).toSorted().map(level => s.levelLabels[level - 1])
+}
+const getLevelIconPaths = (buttonName) => {
+	switch (buttonName) {
+		case s.levelLabels[0]:
+			return "icons/skills/ranged/target-bullseye-archer-orange.webp"
+			break
+		case s.levelLabels[1]:
+			return "icons/skills/melee/weapons-crossed-daggers-orange.webp"
+			break
+		case s.levelLabels[2]:
+			return "icons/skills/ranged/arrows-triple-yellow-red.webp"
+			break
+		case s.levelLabels[3]:
+			return "icons/skills/ranged/shuriken-thrown-yellow.webp"
+			break
+		case s.levelLabels[4]:
+			return "icons/skills/ranged/daggers-thrown-salvo-orange.webp"
+			break				
+	}	
 }
 const getLiveActors = async () => {
 	return game.users.filter(user => user.character).filter(user => {
 		return canvas.scene.tokens.find(token => token.actor.uuid == user.character.uuid)
 	}).map(user => user.character)
 }
+const getSpellChoice = async (spellChoices, spellHeader, getSpellIconPaths, spellIcons) => {
+	const sortedChoices = spellChoices.toSorted()
+	const radioSelections = sortedChoices.map(choice => {
+		const data = spellIcons.find(spell => spell.name == choice)
+		const icon = data.icon
+		const label = `<img align=left src=${icon} width="15" height="15" style="border:0px">${choice}`
+		return {type: "radio", label}
+	})
+	let choices = await warpgate.menu(
+		{
+			inputs: radioSelections
+		},{
+			title: spellHeader,
+			render: (...args) => {},
+			options: {
+				width: "100%",
+				height: "100%",
+			}
+		}
+	)	
+	return {value: sortedChoices[choices.inputs.indexOf(true)]}
+}
+const getSpellChoices = async (charChoice, eligibleSpellsByChar, levelChoiceInt) => {	
+	const character = eligibleSpellsByChar.find(character => character.origin == charChoice.value)	
+	const spells = character.spells.filter(spell => spell.level == levelChoiceInt && !s.charnamesExceptions.includes(spell.name))
+	const names = spells.map(spell => spell.name)
+	const icons = spells.map(spell => { return {name: spell.name, icon: spell.icon} })
+	return [names, icons]
+}
 const getSpellData = (actor, item, i) => {
-	const origin = actor.prototypeToken.name
 	const name = item.name
 	const level = i
 	const dc = actor.system.attributes.spelldc
 	const ability = actor.system.attributes.spellcasting
 	const attackBonus = getAttackBonus(actor, item, ability)
 	const prof = actor.system.attributes.prof	
-	const icon = actor.prototypeToken.texture.src
-	return {origin, name, level, dc, ability, attackBonus, prof, icon}
+	const icon = item.img
+	const uuid = item.uuid
+	const activation = item.system.activation.type
+	return {name, level, dc, ability, attackBonus, prof, icon, uuid, activation}
 }
-const getSpellToCast = async () => {
-	//dialog to chose spell from what's stored on the ring
-	//dummy data for now
-	return {name: "Cure Wounds", uuid: "Item.jDSEZWO8xBbW8AXB", level: 1}
+const getSpellIconPaths = (choice, iconData) => {
+	const match = iconData.find(item => item.name == choice)
+	return match.icon	
+}
+const getSpellToCast = async (item) => {
+	const spells = item.flags?.charname?.ringOfSpellStoring?.spells ?? []
+	if (spells.length < 1) {
+		ui.notifications.info(s.castSpellErr)
+		return false		
+	}	
+	const uniqueSpells = new Set(spells)
+	const spellsArr = Array.from(uniqueSpells)
+	const spellNames = spellsArr.map(spell => spell.name).toSorted()
+	const chosenSpell = await getDialogueButtonType(spellNames, {width: 400, height: "100%"}, s.castSpellHeader, getSpellIconPaths, 60, 60, spellsArr)
+	return spellsArr.find(spell => spell.name == chosenSpell.value)
+}
+const getUpdatedDescription = async (item) => {
+	const desc = item.system.description.value
+	const spells = item.flags.charname.ringOfSpellStoring.spells.reduce((spells, spell) => {
+		console.log("spell")
+		console.log(spell)	
+		const newSpell = ["<br />" + spell.name + s.descLevel + spell.level]
+		return [...spells, ...newSpell]
+	}, []).toSorted()		
+	const newSpells = spells.reduce((descs, desc) => {
+		return descs + desc
+	}, "")
+	const spellBankStr = desc.substring(
+		desc.indexOf("*******") - 6, 
+		desc.lastIndexOf("*******")	+ 7
+	) ?? ""
+	const sanitizedDesc = desc.replace(spellBankStr, "")	
+	return sanitizedDesc + "<br />*******<br />" + s.currSpellBank + ":<br />" + newSpells + "<br />*******"
 }
 const main = async ({args, item}) => {
-	//dialog to choose if you are adding a spell or using a spell
-	console.log(args)
-	const initChoice = await getDialogueButtonType(ringOfSpellStoringInitChoices, {width: 400, height: 150}, ringOfSpellStoringInitHeader, getInitIconPaths, 60, 60)
+	const initChoice = await getDialogueButtonType(s.initChoices, {width: 400, height: "100%"}, s.initHeader, getInitIconPaths, 60, 60)
 	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
 	const liveItem = await fromUuid(item.uuid)
-	console.log("initChoice")
-	console.log(initChoice)	
-	console.log("tokenActor")
-	console.log(tokenActor)	
-	if (initChoice.value == ringOfSpellStoringInitChoices[0]) {
-		addSpells(tokenActor, liveItem)
-	} else if (initChoice.value == ringOfSpellStoringInitChoices[1]) {
-		castSpell(tokenActor)
-	} else if (initChoice.value == ringOfSpellStoringInitChoices[2]) {
-		//need logic for reset spell
+	if (initChoice.value == s.initChoices[0]) {
+		addSpell(tokenActor, liveItem)
+	} else if (initChoice.value == s.initChoices[1]) {
+		castSpell(tokenActor, liveItem)
+	} else if (initChoice.value == s.initChoices[2]) {
+		resetSpells(liveItem)
 	}
-	
 }
-
+const updateRingItem = async (item, charName, level, spellName, eligibleSpellsByChar) => {	
+	const slots = item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
+	const newSlotsUsed = slots + level
+	if (newSlotsUsed > 5) {
+		ui.notifications.info(s.addSpellErr)
+		return false
+	}
+	const chr = eligibleSpellsByChar.find(chr => chr.origin == charName)
+	const spellData = item.flags?.charname?.ringOfSpellStoring?.spells ?? []
+	const chosenSpell = [chr.spells.find(spell => spell.name == spellName && spell.level == level)]		
+	const newSpellData = [...spellData, ...chosenSpell]
+	const flagUpdate = await item.update({
+		"flags.charname.ringOfSpellStoring.spells": newSpellData,
+		"flags.charname.ringOfSpellStoring.slotsUsed": newSlotsUsed
+	})	
+	const updatedDescription = await getUpdatedDescription(item)	
+	const descUpdate = await item.update({
+		"system.description.value": updatedDescription
+	})
+	//I think I can add logic either here or before here to add reaction spells to inventory
+	//hook may still be the best way to delete them, but the only other thing I can think to do is to add a self delete macro to the Item Macro 
+	//but I don't want to do that because it means no one can use the itemmacro on that item 
+	//maybe I can append something to the start or end of the item macro if there is one?
+	//or perhaps I can have it point to another function or even back to this one?  make a new export const?
+	//key may be spellData.activation
+}
+const resetSpells = async (item) => {
+	const desc = item.system.description.value
+	const spellBankStr = desc.substring(
+		desc.indexOf("*******") - 6, 
+		desc.lastIndexOf("*******")	+ 7
+	) ?? ""	
+	const updatedStr = "<br />*******<br />" + s.currSpellBank + ":<br /><br />*******"
+	const updatedDesc = desc.replace(spellBankStr, updatedStr)	
+	await item.update({
+		"flags.charname.ringOfSpellStoring.spells": [],
+		"flags.charname.ringOfSpellStoring.slotsUsed": 0,
+		"system.description.value": updatedDesc
+	})	
+}
+const setDeleteItemFlags = async (liveItem, spellData) => {
+	const spells = liveItem.flags.charname.ringOfSpellStoring.spells	
+	const slotsUsed = liveItem.flags.charname.ringOfSpellStoring.slotsUsed
+	const usedSpell = spells.find(spell => {
+		return spell.level == spellData.level
+			&& spell.name == spellData.name 
+			&& spell.dc == spellData.dc 
+			&& spell.ability == spellData.ability
+	})	
+	const deleteIndex = spells.indexOf(usedSpell)
+	const newSlotsUsed = slotsUsed - usedSpell.level
+	const newSpells = spells.filter((spell, i) => i != deleteIndex)
+	const flaggedItem = await liveItem.update({
+		"flags.charname.ringOfSpellStoring.spells": newSpells,
+		"flags.charname.ringOfSpellStoring.slotsUsed": newSlotsUsed
+	})
+	const updatedDescription = await getUpdatedDescription(flaggedItem)	
+	const descUpdate = await flaggedItem.update({
+		"system.description.value": updatedDescription
+	})	
+}
 
 export const ringOfSpellStoring = {
 	"main": main

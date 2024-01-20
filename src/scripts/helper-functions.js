@@ -1,9 +1,9 @@
 import {settings} from "./settings.js"
 import {socket} from "./index.js"
 
-export const getDialogueButtons = (resolve, choices, getIconPaths, width, height) => {
+export const getDialogueButtons = (resolve, choices, getIconPaths, width, height, iconData) => {	
 	return choices.reduce((buttons, choice, i) => {
-		const icon = getIconPaths(choice)
+		const icon = getIconPaths(choice, iconData)
 		const newButton = {[choice]: {
 			label: `<img src=${icon} width=${width} height=${height} style="border:0px"><br>${choice}`,
 			callback: () => {
@@ -13,9 +13,9 @@ export const getDialogueButtons = (resolve, choices, getIconPaths, width, height
 		return {...buttons, ...newButton}
 	}, {})
 }
-export const getDialogueButtonType = async (choices, dialogueOptions, title, getIconPathsFunc, buttonWidth, buttonHeight) => { 
-	return await (new Promise( (resolve) => {
-		const buttons = getDialogueButtons(resolve, choices, getIconPathsFunc, buttonWidth, buttonHeight)
+export const getDialogueButtonType = async (choices, dialogueOptions, title, getIconPathsFunc, buttonWidth, buttonHeight, iconData) => { 
+	return await (new Promise( (resolve) => {	
+		const buttons = getDialogueButtons(resolve, choices, getIconPathsFunc, buttonWidth, buttonHeight, iconData)		
 		new Dialog({
 			title: title,
 			buttons: buttons
