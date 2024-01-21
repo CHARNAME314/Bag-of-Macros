@@ -1,5 +1,9 @@
 //TODO:
-//add reaction handling for spells like shield?  Or add them directly to the character sheet?
+//make sure reset removes reaction spells inventory
+//make sure ring is being updated with reaction items being used/deleted
+//can add another macro to be called upon usage of reaction items to run a hook to adjust spell level
+//update to add delete uuids to either template or template effect  
+//refactor so I don't hate myself later
 
 import {getDialogueButtonType} from "../../helper-functions.js"
 import {ringOfSpellStoring as s} from "../../strings/items.js"
@@ -18,11 +22,13 @@ const addSpell = async (tokenActor, item) => {
 	const levelChoiceInt = s.levelLabels.indexOf(levelChoice.value) + 1
 	const [spellChoices, spellIcons] = await getSpellChoices(charChoice, eligibleSpellsByChar, levelChoiceInt)
 	const spellChoice = await getSpellChoice(spellChoices, s.spellHeader, getSpellIconPaths, spellIcons)
-	updateRingItem(item, charChoice.value, levelChoiceInt, spellChoice.value, eligibleSpellsByChar)
+	const [spellData] = await updateRingItem(item, charChoice.value, levelChoiceInt, spellChoice.value, eligibleSpellsByChar)	
+	if (spellData.activation == "reaction") setReactionUpdates(spellData, tokenActor, item)
 }
 const castSpell = async (tokenActor, liveItem) => {
 	const spellData = await getSpellToCast(liveItem)	
-	const [tempItem] = await createTempItem(spellData, tokenActor)	
+	const [tempItem] = await createTempItem(spellData, tokenActor, liveItem)
+	updateDeleteUuidEffects(tempItem)
 	Hooks.once("dnd5e.preUseItem", (item, config) => {
 		if (item.uuid != tempItem.uuid) return false	
 		config.consumeResource = false
@@ -34,40 +40,73 @@ const castSpell = async (tokenActor, liveItem) => {
 	const workflow = await MidiQOL.completeItemUse(tempItem, liveItem)
 	const template = await fromUuid(workflow.templateUuid) ?? false
 	if (template) template.callMacro("whenCreated", {asGM: true})
-	if (workflow) await deleteTempItem(template, liveItem, tempItem, spellData, tokenActor)	
 }
-const createTempItem = async (spellData, tokenActor) => {
+const createTempItem = async (spellData, tokenActor, liveItem) => {
 	const sourceItem = await fromUuid(spellData.uuid)	
+	console.log("createTempItem liveItem")
+	console.log(liveItem)	
+	//add macros here
+	console.log("createTempItem tokenActor")
+	console.log(tokenActor)		
+	
+	
+	
+	
+	const sourceMacroNames = sourceItem.flags["midi-qol"]?.onUseMacroName ?? ""
+	const updatedMacroNames = sourceMacroNames.length > 0 
+							? sourceMacroNames + ",[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem" 
+							: "[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem"
 	const itemData = mergeObject(duplicate(sourceItem.toObject(false)), {
-		name: "Ring of Spell Storing: " + spellData.name,
+		//name: "Ring of Spell Storing: " + spellData.name,
+		img: liveItem.img,
+		"flags.charname.ringOfSpellStoring.ringUuid": liveItem.uuid,
+		"flags.charname.ringOfSpellStoring.spellData": spellData,
+		"flags.midi-qol.onUseMacroName": updatedMacroNames,
 		"system.ability": "none",
 		"system.attackBonus": spellData.attackBonus,
 		"system.preparation.mode": "innate",
 		"system.save.dc": spellData.dc,
 		"system.save.scaling": "flat"
 	}, {overwrite: true, inlace: true, insertKeys: true, insertValues: true})
+
+	console.log("createTempItem itemData")
+	console.log(itemData)
 	return await tokenActor.createEmbeddedDocuments("Item", [itemData])
 }
-const deleteTempItem = async (template, liveItem, tempItem, spellData, tokenActor) => {	
-	setDeleteItemFlags(liveItem, spellData)
+const deleteTempItem = async ({args, item, workflow}) => {
+	console.log("REACTION TIME BABY")
+	console.log(args)
+	console.log(item)
+	console.log(workflow)
+	const tempItem = await fromUuid(item.uuid)
+	console.log("tempItem")
+	console.log(tempItem)	
+	const ringItem = await fromUuid(tempItem.flags.charname.ringOfSpellStoring.ringUuid)
+	console.log("ringItem")
+	console.log(ringItem)	
+	const spellData = tempItem.flags.charname.ringOfSpellStoring.spellData
+	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
+	console.log("tokenActor")
+	console.log(tokenActor)		
+	await setDeleteItemFlags(ringItem, spellData)
 	const concEffect = await MidiQOL.getConcentrationEffect(tokenActor) ?? false	
+	console.log("concEffect")
+	console.log(concEffect)		
+	const template = await fromUuid(workflow.templateUuid) ?? false
+	const deleteUuidEffects = await getDeleteUuidEffects(tempItem)
 	if (concEffect) {
-		Hooks.once("deleteActiveEffect", (deletedEffect) => {
-			if (deletedEffect.uuid == concEffect.uuid) {
-				const tempItemExists = fromUuidSync(tempItem.uuid)
-				if (tempItemExists) tempItem.delete()
-			}
-		})
-	} else if (!concEffect && template) {
+		setDeleteUuids(item, concEffect)
+	} else if (!concEffect && !selfEffects && template) {
+		//update to add delete uuids to either template or template effect 
 		Hooks.once("deleteMeasuredTemplate", (deletedTemplate) => {
 			if (deletedTemplate.uuid == template.uuid) {
 				const tempItemExists = fromUuidSync(tempItem.uuid)
 				if (tempItemExists) tempItem.delete()
 			}
 		})
-	} else {
+	} else if (!concEffect && !template && deleteUuidEffects.length < 1) {
 		tempItem.delete()
-	}	
+	}
 }
 const getAttackBonus = (actor, item, ability) => {
 	const isRangedAttack = item.system.actionType == "rsak"
@@ -135,6 +174,16 @@ const getInitIconPaths = (buttonName) => {
 			return "icons/magic/defensive/shield-barrier-glowing-triangle-teal-purple.webp"
 			break			
 	}
+}
+const getDeleteUuidEffects = async (item) => {	
+	const isConcentration = item.system.components.concentration || item.flags.midiProperties.concentration
+	const itemEffects = item.effects ?? []
+	return itemEffects.filter(effect => {
+		const selfTarget = effect.flags?.dae?.selfTarget ?? false
+		const selfTargetAlways = effect.flags?.dae?.selfTargetAlways ?? false
+		if ((selfTarget || selfTargetAlways) && !isConcentration) return true 
+		return false
+	}) ?? []
 }
 const getLevelChoices = async (charChoice, tokenActor, eligibleSpellsByChar, item) => {
 	const slotsRemaining = 5 - item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
@@ -206,7 +255,8 @@ const getSpellData = (actor, item, i) => {
 	const icon = item.img
 	const uuid = item.uuid
 	const activation = item.system.activation.type
-	return {name, level, dc, ability, attackBonus, prof, icon, uuid, activation}
+	const originUuid = actor.uuid
+	return {name, level, dc, ability, attackBonus, prof, icon, uuid, activation, originUuid}
 }
 const getSpellIconPaths = (choice, iconData) => {
 	const match = iconData.find(item => item.name == choice)
@@ -273,12 +323,11 @@ const updateRingItem = async (item, charName, level, spellName, eligibleSpellsBy
 	const descUpdate = await item.update({
 		"system.description.value": updatedDescription
 	})
-	//I think I can add logic either here or before here to add reaction spells to inventory
-	//hook may still be the best way to delete them, but the only other thing I can think to do is to add a self delete macro to the Item Macro 
-	//but I don't want to do that because it means no one can use the itemmacro on that item 
-	//maybe I can append something to the start or end of the item macro if there is one?
-	//or perhaps I can have it point to another function or even back to this one?  make a new export const?
-	//key may be spellData.activation
+	return chosenSpell
+}
+const updateDeleteUuidEffects = async (item) => {
+	const effects = await getDeleteUuidEffects(item)
+	if (effects.length > 0) effects.map(effect => setDeleteUuids(item, effect))	
 }
 const resetSpells = async (item) => {
 	const desc = item.system.description.value
@@ -315,7 +364,18 @@ const setDeleteItemFlags = async (liveItem, spellData) => {
 		"system.description.value": updatedDescription
 	})	
 }
+const setDeleteUuids = async (tempItem, effect) => {
+	const deletionChange = {key: "flags.dae.deleteUuid", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: [tempItem.uuid]}
+	const updatedChanges = [...effect.changes, deletionChange]
+	effect.update({"changes": updatedChanges})		
+}
+const setReactionUpdates = async (spellData, tokenActor, liveItem) => {
+	console.log("SET REACTION UPDATES")
+	const [tempItem] = await createTempItem(spellData, tokenActor, liveItem)
+	updateDeleteUuidEffects(tempItem)
+}
 
 export const ringOfSpellStoring = {
-	"main": main
+	"main": main,
+	"deleteTempItem": deleteTempItem
 }
