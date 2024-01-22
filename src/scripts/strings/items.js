@@ -1,3 +1,4 @@
+//refactor the exceptions to be pulled from a custom exceptions file
 export const ringOfSpellStoring = {
 	addSpellErr:		"Your Ring of Spell Storing doesn't have enough room left for a spell!",
 	castSpellErr:		"Your Ring of Spell Storing doesn't have any spells on it!",	

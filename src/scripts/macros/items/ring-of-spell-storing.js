@@ -1,112 +1,67 @@
-//TODO:
-//make sure reset removes reaction spells inventory
-//make sure ring is being updated with reaction items being used/deleted
-//can add another macro to be called upon usage of reaction items to run a hook to adjust spell level
-//update to add delete uuids to either template or template effect  
-//refactor so I don't hate myself later
-
 import {getDialogueButtonType} from "../../helper-functions.js"
 import {ringOfSpellStoring as s} from "../../strings/items.js"
 
-const addSpell = async (tokenActor, item) => {
-	if (item.flags.charname.ringOfSpellStoring.slotsUsed == 5) {
-		ui.notifications.info(s.addSpellErr)
-		return false
-	}	
-	const actors = await getLiveActors()
-	const eligibleSpellsByChar = await getEligibleSpells(actors)	
-	const charChoices = eligibleSpellsByChar.map(character => character.origin).toSorted()
-	const charChoice = await getDialogueButtonType(charChoices, {width: 400, height: 150}, s.charHeader, getCharIconPaths, 60, 60, eligibleSpellsByChar)
-	const levelChoices = await getLevelChoices(charChoice, tokenActor, eligibleSpellsByChar, item)
-	const levelChoice = await getDialogueButtonType(levelChoices, {width: 400, height: 150}, s.levelHeader, getLevelIconPaths, 60, 60)
-	const levelChoiceInt = s.levelLabels.indexOf(levelChoice.value) + 1
-	const [spellChoices, spellIcons] = await getSpellChoices(charChoice, eligibleSpellsByChar, levelChoiceInt)
-	const spellChoice = await getSpellChoice(spellChoices, s.spellHeader, getSpellIconPaths, spellIcons)
-	const [spellData] = await updateRingItem(item, charChoice.value, levelChoiceInt, spellChoice.value, eligibleSpellsByChar)	
-	if (spellData.activation == "reaction") setReactionUpdates(spellData, tokenActor, item)
+const addSpell = async (item, tokenActor) => {
+	const notification = await setAddSpellNotification(item)
+	if (notification) return false
+	const updates = await getAddSpellUpdates(item, tokenActor)
+	setAddSpellUpdates(item, updates, tokenActor)
 }
-const castSpell = async (tokenActor, liveItem) => {
-	const spellData = await getSpellToCast(liveItem)	
-	const [tempItem] = await createTempItem(spellData, tokenActor, liveItem)
-	updateDeleteUuidEffects(tempItem)
-	Hooks.once("dnd5e.preUseItem", (item, config) => {
-		if (item.uuid != tempItem.uuid) return false	
-		config.consumeResource = false
-		config.consumeSpellSlot = false
-		config.consumeUsage = false
-		config.slotLevel = spellData.level	
-		config.system.prof._baseProficiency = spellData.prof			
-	})	
-	const workflow = await MidiQOL.completeItemUse(tempItem, liveItem)
-	const template = await fromUuid(workflow.templateUuid) ?? false
-	if (template) template.callMacro("whenCreated", {asGM: true})
+const castSpell = async (item, tokenActor) => {
+	const updates = await createCastWorkflow(item, tokenActor)
+	setCastSpellUpdates(updates, tokenActor)
+}
+const checkSelfTarget = async (args, item, originTokenDoc) => {
+	const hasEffects = item.effects.size > 0
+	const isSelfTargetItem = item.target?.type == "self"
+	const originTargetingSelf = args[0].hitTargetUuids.filter(uuid => uuid == originTokenDoc.uuid).length > 0
+	return hasEffects && (isSelfTargetItem || originTargetingSelf)
+}
+const createCastWorkflow = async (item, tokenActor) => {
+	const spellData = await getSpellToCast(item)	
+	const [tempItem] = await createTempItem(spellData, tokenActor, item)
+	await setPreUseItemHooks(tempItem, spellData)
+	const workflow = await MidiQOL.completeItemUse(tempItem, item)	
+	return [tempItem, workflow]
 }
 const createTempItem = async (spellData, tokenActor, liveItem) => {
 	const sourceItem = await fromUuid(spellData.uuid)	
-	console.log("createTempItem liveItem")
-	console.log(liveItem)	
-	//add macros here
-	console.log("createTempItem tokenActor")
-	console.log(tokenActor)		
-	
-	
-	
-	
-	const sourceMacroNames = sourceItem.flags["midi-qol"]?.onUseMacroName ?? ""
-	const updatedMacroNames = sourceMacroNames.length > 0 
-							? sourceMacroNames + ",[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem" 
-							: "[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem"
-	const itemData = mergeObject(duplicate(sourceItem.toObject(false)), {
-		//name: "Ring of Spell Storing: " + spellData.name,
-		img: liveItem.img,
-		"flags.charname.ringOfSpellStoring.ringUuid": liveItem.uuid,
-		"flags.charname.ringOfSpellStoring.spellData": spellData,
-		"flags.midi-qol.onUseMacroName": updatedMacroNames,
-		"system.ability": "none",
-		"system.attackBonus": spellData.attackBonus,
-		"system.preparation.mode": "innate",
-		"system.save.dc": spellData.dc,
-		"system.save.scaling": "flat"
-	}, {overwrite: true, inlace: true, insertKeys: true, insertValues: true})
-
-	console.log("createTempItem itemData")
-	console.log(itemData)
+	const sourceMacroNames = await getSourceMacroNames(sourceItem)
+	const updatedMacroNames = await getUpdatedMacroNames(sourceMacroNames, spellData.activation)
+	const itemData = await getTempItem(liveItem, sourceItem, spellData, updatedMacroNames)
 	return await tokenActor.createEmbeddedDocuments("Item", [itemData])
 }
 const deleteTempItem = async ({args, item, workflow}) => {
-	console.log("REACTION TIME BABY")
-	console.log(args)
-	console.log(item)
-	console.log(workflow)
-	const tempItem = await fromUuid(item.uuid)
-	console.log("tempItem")
-	console.log(tempItem)	
-	const ringItem = await fromUuid(tempItem.flags.charname.ringOfSpellStoring.ringUuid)
-	console.log("ringItem")
-	console.log(ringItem)	
-	const spellData = tempItem.flags.charname.ringOfSpellStoring.spellData
-	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
-	console.log("tokenActor")
-	console.log(tokenActor)		
-	await setDeleteItemFlags(ringItem, spellData)
-	const concEffect = await MidiQOL.getConcentrationEffect(tokenActor) ?? false	
-	console.log("concEffect")
-	console.log(concEffect)		
-	const template = await fromUuid(workflow.templateUuid) ?? false
-	const deleteUuidEffects = await getDeleteUuidEffects(tempItem)
-	if (concEffect) {
-		setDeleteUuids(item, concEffect)
-	} else if (!concEffect && !selfEffects && template) {
-		//update to add delete uuids to either template or template effect 
-		Hooks.once("deleteMeasuredTemplate", (deletedTemplate) => {
-			if (deletedTemplate.uuid == template.uuid) {
-				const tempItemExists = fromUuidSync(tempItem.uuid)
-				if (tempItemExists) tempItem.delete()
-			}
-		})
-	} else if (!concEffect && !template && deleteUuidEffects.length < 1) {
-		tempItem.delete()
-	}
+	const [tempItem, originTokenDoc, tokenActor] = await getDeleteItemData(args, item)
+	await setDeleteItemFlags(tempItem)
+	const logic = await getDeleteItemLogic(args, item, originTokenDoc, tempItem, tokenActor, workflow)
+	setDeleteItemLogic(logic, tempItem, tokenActor)
+}
+const getAddCharChoice = async (eligibleSpellsByChar) => {
+	const charChoices = eligibleSpellsByChar.map(character => character.origin).toSorted()	
+	return await getDialogueButtonType(charChoices, {width: 400, height: 150}, s.charHeader, getCharIconPaths, 60, 60, eligibleSpellsByChar)
+}
+const getAddLevelChoice = async (charChoice, tokenActor, eligibleSpellsByChar, item) => {
+	const levelChoices = await getLevelChoices(charChoice, tokenActor, eligibleSpellsByChar, item)
+	const levelChoice = await getDialogueButtonType(levelChoices, {width: 400, height: 150}, s.levelHeader, getLevelIconPaths, 60, 60)
+	//return value as int
+	return {value: s.levelLabels.indexOf(levelChoice.value) + 1}
+}
+const getAddSpellChoice = async (charChoice, eligibleSpellsByChar, levelChoice) => {
+	const [spellChoices, spellIcons] = await getSpellChoices(charChoice, eligibleSpellsByChar, levelChoice)
+	return await getSpellChoice(spellChoices, s.spellHeader, getSpellIconPaths, spellIcons)	
+}
+const getAddSpellChoices = async (eligibleSpellsByChar, item, tokenActor) => {
+	const charChoice = await getAddCharChoice(eligibleSpellsByChar)
+	const levelChoice = await getAddLevelChoice(charChoice, tokenActor, eligibleSpellsByChar, item)
+	const spellChoice = await getAddSpellChoice(charChoice, eligibleSpellsByChar, levelChoice.value)
+	return [charChoice.value, levelChoice.value, spellChoice.value]
+}
+const getAddSpellUpdates = async (item, tokenActor) => {
+	const actors = await getLiveActors()
+	const eligibleSpellsByChar = await getEligibleSpells(actors)	
+	const choices = await getAddSpellChoices(eligibleSpellsByChar, item, tokenActor)	
+	return [choices, eligibleSpellsByChar]
 }
 const getAttackBonus = (actor, item, ability) => {
 	const isRangedAttack = item.system.actionType == "rsak"
@@ -123,32 +78,79 @@ const getCharIconPaths = (choice, iconData) => {
 	const match = iconData.find(item => item.origin == choice)
 	return match.icon
 }
+const getDeleteItemFlagData = async (liveItem, tempItem) => {
+	const spellData = tempItem.flags.charname.ringOfSpellStoring.spellData
+	const spells = liveItem.flags.charname.ringOfSpellStoring.spells	
+	const slotsUsed = liveItem.flags.charname.ringOfSpellStoring.slotsUsed
+	const usedSpell = spells.find(spell => {
+		return spell.level == spellData.level
+			&& spell.name == spellData.name 
+			&& spell.dc == spellData.dc 
+			&& spell.ability == spellData.ability
+	})	
+	const deleteIndex = spells.indexOf(usedSpell)
+	return [deleteIndex, slotsUsed, spells, usedSpell.level]
+}
+const getDeleteItemFlagUpdates = async (liveItem, tempItem) => {
+	const [deleteIndex, slotsUsed, spells, usedSpellLevel] = await getDeleteItemFlagData(liveItem, tempItem)
+	const newSlotsUsed = slotsUsed - usedSpellLevel
+	const newSpells = spells.filter((spell, i) => i != deleteIndex)	
+	return [newSlotsUsed, newSpells]
+}
+const getDeleteItemLogic = async (args, item, originTokenDoc, tempItem, tokenActor, workflow) => {
+	const concEffect = await MidiQOL.getConcentrationEffect(tokenActor) ?? false	
+	const hasTemplate = await fromUuid(workflow.templateUuid) ?? false
+	const selfEffects = await getSelfEffects(tempItem)
+	const hasSelfEffects = selfEffects.length > 0
+	const hasSelfTarget = await checkSelfTarget(args, item, originTokenDoc)		
+	return [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget]
+}
+const getDeleteItemData = async (args, item) => {
+	const tempItem = await fromUuid(item.uuid)
+	const originTokenDoc = await fromUuid(args[0].tokenUuid)
+	const tokenActor = originTokenDoc.actor	
+	return [tempItem, originTokenDoc, tokenActor]
+}
+const getDeleteUuidEffects = async (actor, item) => {	
+	const isConcentration = item.system.components.concentration || item.flags.midiProperties.concentration
+	const isReactionItem = item.system.activation.type == "reaction"
+	if (isConcentration && !isReactionItem) {
+		return [await MidiQOL.getConcentrationEffect(actor)]
+	}
+	return await getSelfEffects(item) ?? []
+}
+const getEligibleLevelSpells = (actor, item) => {
+	const highestSpellLevel = getHighestSpellLevel(actor.system.spells)
+	const mode = item.system.preparation.mode
+	let eligibleLevelSpells = []
+	let spellData = {}
+	for (let i = item.system.level; i <= 5; i ++) {
+		if (mode == "atwill" || mode == "innate") {				
+			if (i == item.system.level) {
+				spellData = getSpellData(actor, item, item.system.level)
+				eligibleLevelSpells.push(spellData)
+			}
+		} else if (mode == "pact") {
+			if (i == actor.system.spells.pact.level) {
+				spellData = getSpellData(actor, item, actor.system.spells.pact.level)
+				eligibleLevelSpells.push(spellData)
+			}
+		} else {
+			if (i <= highestSpellLevel) {
+				spellData = getSpellData(actor, item, i)
+				eligibleLevelSpells.push(spellData)					
+			}
+		}	
+	}		
+	return eligibleLevelSpells
+}
 const getEligibleSpells = async (actors) => {
 	return actors.map(actor => {
-		const highestSpellLevel = getHighestSpellLevel(actor.system.spells)
-		const eligibleItems = actor.items.filter(item => item.type == "spell" && item.system.level > 0 && item.system.level <= 5)	
-		const actorSpells = eligibleItems.reduce((items, item) => {
-			let arr = []
-			let spellData = {}
-			for (let i = item.system.level; i <= 5; i ++) {
-				if (item.system.preparation.mode == "atwill" || item.system.preparation.mode == "innate") {				
-					if (i == item.system.level) {
-						spellData = getSpellData(actor, item, item.system.level)
-						arr.push(spellData)
-					}
-				} else if (item.system.preparation.mode == "pact") {
-					if (i == actor.system.spells.pact.level) {
-						spellData = getSpellData(actor, item, actor.system.spells.pact.level)
-						arr.push(spellData)
-					}
-				} else {
-					if (i <= highestSpellLevel) {
-						spellData = getSpellData(actor, item, i)
-						arr.push(spellData)					
-					}
-				}	
-			}		
-			return [...items, ...arr]
+
+		const eligibleSpells = actor.items.filter(item => item.type == "spell" && item.system.level > 0 && item.system.level <= 5)	
+		const actorSpells = eligibleSpells.reduce((spells, spell) => {
+			const eligibleLevelSpells = getEligibleLevelSpells(actor, spell)
+			return [...spells, ...eligibleLevelSpells]
 		}, [])
 		return {origin: actor.prototypeToken.name, icon: actor.prototypeToken.texture.src, spells: actorSpells}
 	})
@@ -174,16 +176,6 @@ const getInitIconPaths = (buttonName) => {
 			return "icons/magic/defensive/shield-barrier-glowing-triangle-teal-purple.webp"
 			break			
 	}
-}
-const getDeleteUuidEffects = async (item) => {	
-	const isConcentration = item.system.components.concentration || item.flags.midiProperties.concentration
-	const itemEffects = item.effects ?? []
-	return itemEffects.filter(effect => {
-		const selfTarget = effect.flags?.dae?.selfTarget ?? false
-		const selfTargetAlways = effect.flags?.dae?.selfTargetAlways ?? false
-		if ((selfTarget || selfTargetAlways) && !isConcentration) return true 
-		return false
-	}) ?? []
 }
 const getLevelChoices = async (charChoice, tokenActor, eligibleSpellsByChar, item) => {
 	const slotsRemaining = 5 - item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
@@ -215,6 +207,28 @@ const getLiveActors = async () => {
 	return game.users.filter(user => user.character).filter(user => {
 		return canvas.scene.tokens.find(token => token.actor.uuid == user.character.uuid)
 	}).map(user => user.character)
+}
+const getNewSlotsUsed = async(item, level) => {
+	const slots = item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
+	return slots + level
+}
+const getSelfEffects = async (item) => {	
+	const itemEffects = item.effects ?? []
+	return itemEffects.filter(effect => {
+		const selfTarget = effect.flags?.dae?.selfTarget ?? false
+		const selfTargetAlways = effect.flags?.dae?.selfTargetAlways ?? false
+		if ((selfTarget || selfTargetAlways)) return true 
+		return false
+	}) ?? []
+}
+const getSourceMacroNames = async (item) => {
+	const hasFlags = item?.flags ?? false
+	if (!hasFlags) return ""
+	const hasMidi = item.flags["midi-qol"] ?? false
+	if (!hasMidi) return ""
+	const hasMacros = item.flags["midi-qol"].onUseMacroName ?? false
+	if (!hasMacros) return ""
+	return item.flags["midi-qol"].onUseMacroName
 }
 const getSpellChoice = async (spellChoices, spellHeader, getSpellIconPaths, spellIcons) => {
 	const sortedChoices = spellChoices.toSorted()
@@ -274,11 +288,22 @@ const getSpellToCast = async (item) => {
 	const chosenSpell = await getDialogueButtonType(spellNames, {width: 400, height: "100%"}, s.castSpellHeader, getSpellIconPaths, 60, 60, spellsArr)
 	return spellsArr.find(spell => spell.name == chosenSpell.value)
 }
+const getTempItem = async (liveItem, sourceItem, spellData, updatedMacroNames) => {
+	return mergeObject(duplicate(sourceItem.toObject(false)), {
+		img: liveItem.img,
+		"flags.charname.ringOfSpellStoring.ringUuid": liveItem.uuid,
+		"flags.charname.ringOfSpellStoring.spellData": spellData,
+		"flags.midi-qol.onUseMacroName": updatedMacroNames,
+		"system.ability": "none",
+		"system.attackBonus": spellData.attackBonus,
+		"system.preparation.mode": "innate",
+		"system.save.dc": spellData.dc,
+		"system.save.scaling": "flat"
+	}, {overwrite: true, inlace: true, insertKeys: true, insertValues: true})	
+}
 const getUpdatedDescription = async (item) => {
 	const desc = item.system.description.value
 	const spells = item.flags.charname.ringOfSpellStoring.spells.reduce((spells, spell) => {
-		console.log("spell")
-		console.log(spell)	
 		const newSpell = ["<br />" + spell.name + s.descLevel + spell.level]
 		return [...spells, ...newSpell]
 	}, []).toSorted()		
@@ -292,44 +317,101 @@ const getUpdatedDescription = async (item) => {
 	const sanitizedDesc = desc.replace(spellBankStr, "")	
 	return sanitizedDesc + "<br />*******<br />" + s.currSpellBank + ":<br />" + newSpells + "<br />*******"
 }
+const getUpdatedMacroNames = async (macroNames, activation) => {	
+	const update = macroNames.length > 0 
+			? macroNames + ",[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem" 
+			: "[postRollFinished]function.CHARNAME.macros.ringOfSpellStoring.deleteTempItem"
+	if (activation == "reaction") {
+		return update + ",[postActiveEffects]function.CHARNAME.macros.ringOfSpellStoring.setReactionHook"
+	} 
+	return update
+}
+const getUpdateRingData = async (charName, eligibleSpellsByChar, item, level, spellName) => {
+	const chr = eligibleSpellsByChar.find(chr => chr.origin == charName)
+	const spellData = item.flags?.charname?.ringOfSpellStoring?.spells ?? []
+	const newSlotsUsed = await getNewSlotsUsed(item, level)
+	const chosenSpell = [chr.spells.find(spell => spell.name == spellName && spell.level == level)]		
+	const newSpellData = [...spellData, ...chosenSpell]	
+	return [chosenSpell, newSlotsUsed, newSpellData]
+}
 const main = async ({args, item}) => {
 	const initChoice = await getDialogueButtonType(s.initChoices, {width: 400, height: "100%"}, s.initHeader, getInitIconPaths, 60, 60)
 	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
 	const liveItem = await fromUuid(item.uuid)
 	if (initChoice.value == s.initChoices[0]) {
-		addSpell(tokenActor, liveItem)
+		addSpell(liveItem, tokenActor)
 	} else if (initChoice.value == s.initChoices[1]) {
-		castSpell(tokenActor, liveItem)
+		castSpell(liveItem, tokenActor)
 	} else if (initChoice.value == s.initChoices[2]) {
-		resetSpells(liveItem)
+		resetSpells(liveItem, tokenActor)
 	}
 }
-const updateRingItem = async (item, charName, level, spellName, eligibleSpellsByChar) => {	
-	const slots = item.flags?.charname?.ringOfSpellStoring?.slotsUsed ?? 0
-	const newSlotsUsed = slots + level
-	if (newSlotsUsed > 5) {
+const resetSpells = async (item, tokenActor) => {
+	setResetSpellsDesc(item)
+	const tempItems = tokenActor.items.filter(item => item.flags?.charname?.ringOfSpellStoring?.ringUuid ?? false)
+	tempItems.map(item => item.delete())
+}
+const setAddSpellNotification = async (item) => {
+	if (item.flags.charname.ringOfSpellStoring.slotsUsed == 5) {
 		ui.notifications.info(s.addSpellErr)
-		return false
-	}
-	const chr = eligibleSpellsByChar.find(chr => chr.origin == charName)
-	const spellData = item.flags?.charname?.ringOfSpellStoring?.spells ?? []
-	const chosenSpell = [chr.spells.find(spell => spell.name == spellName && spell.level == level)]		
-	const newSpellData = [...spellData, ...chosenSpell]
-	const flagUpdate = await item.update({
-		"flags.charname.ringOfSpellStoring.spells": newSpellData,
-		"flags.charname.ringOfSpellStoring.slotsUsed": newSlotsUsed
-	})	
-	const updatedDescription = await getUpdatedDescription(item)	
-	const descUpdate = await item.update({
-		"system.description.value": updatedDescription
-	})
-	return chosenSpell
+		return true
+	}		
 }
-const updateDeleteUuidEffects = async (item) => {
-	const effects = await getDeleteUuidEffects(item)
-	if (effects.length > 0) effects.map(effect => setDeleteUuids(item, effect))	
+const setAddSpellUpdates = async (item, updates, tokenActor) => {
+	const [choices, eligibleSpellsByChar] = updates
+	const [spellData] = await updateRingItem(item, choices, eligibleSpellsByChar)	
+	if (spellData.activation == "reaction") setReactionUpdates(spellData, tokenActor, item)	
 }
-const resetSpells = async (item) => {
+const setCastSpellUpdates = async (updates, tokenActor) => {
+	const [tempItem, workflow] = updates
+	updateDeleteUuidEffects(tokenActor, tempItem)
+	const template = await fromUuid(workflow.templateUuid) ?? false
+	if (template) template.callMacro("whenCreated", {asGM: true})
+}
+const setDeleteItemFlags = async (tempItem) => {
+	const liveItem = await fromUuid(tempItem.flags.charname.ringOfSpellStoring.ringUuid)
+	const updates = await getDeleteItemFlagUpdates(liveItem, tempItem)
+	updateDeleteItemFlags(liveItem, updates)
+}
+const setDeleteItemLogic = async (logic, tempItem, tokenActor) => {
+	const [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget] = logic
+	if (concEffect) {
+		setDeleteUuids(tempItem, concEffect)
+	} else if (!concEffect && hasTemplate && !hasSelfEffects) {
+		const tempItemEffect = tokenActor.effects.find(effect => effect.origin == tempItem.uuid)			
+		setDeleteUuids(tempItem, tempItemEffect)
+	} else if (!concEffect && !hasTemplate && (hasSelfEffects || hasSelfTarget)) {
+		const tempItemEffect = tokenActor.effects.find(effect => effect.origin == tempItem.uuid)
+		setDeleteUuids(tempItem, tempItemEffect)
+	} else if (!concEffect && !hasTemplate && !hasSelfEffects && !hasSelfTarget) {
+		tempItem.delete()
+	}	
+}  
+const setDeleteUuids = async (tempItem, effect) => {
+	const deletionChange = {key: "flags.dae.deleteUuid", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: [tempItem.uuid]}
+	const updatedChanges = [...effect.changes, deletionChange]
+	effect.update({"changes": updatedChanges})		
+}
+const setPreUseItemHooks = async (item, spellData) => {
+	Hooks.once("dnd5e.preUseItem", (useItem, config) => {
+		if (item.uuid != useItem.uuid) return false	
+		config.consumeResource = false
+		config.consumeSpellSlot = false
+		config.consumeUsage = false
+		config.slotLevel = spellData.level	
+		config.system.prof._baseProficiency = spellData.prof			
+	})		
+}
+const setReactionHook = async ({item}) => {
+	const spellData = item.flags?.charname?.ringOfSpellStoring?.spellData ?? false
+	if (!spellData) return false
+	setPreUseItemHooks(item, spellData)
+}
+const setReactionUpdates = async (spellData, tokenActor, liveItem) => {
+	const [tempItem] = await createTempItem(spellData, tokenActor, liveItem)
+	updateDeleteUuidEffects(tokenActor, tempItem)
+}
+const setResetSpellsDesc = async (item) => {
 	const desc = item.system.description.value
 	const spellBankStr = desc.substring(
 		desc.indexOf("*******") - 6, 
@@ -337,45 +419,56 @@ const resetSpells = async (item) => {
 	) ?? ""	
 	const updatedStr = "<br />*******<br />" + s.currSpellBank + ":<br /><br />*******"
 	const updatedDesc = desc.replace(spellBankStr, updatedStr)	
-	await item.update({
+	item.update({
 		"flags.charname.ringOfSpellStoring.spells": [],
 		"flags.charname.ringOfSpellStoring.slotsUsed": 0,
 		"system.description.value": updatedDesc
-	})	
+	})		
 }
-const setDeleteItemFlags = async (liveItem, spellData) => {
-	const spells = liveItem.flags.charname.ringOfSpellStoring.spells	
-	const slotsUsed = liveItem.flags.charname.ringOfSpellStoring.slotsUsed
-	const usedSpell = spells.find(spell => {
-		return spell.level == spellData.level
-			&& spell.name == spellData.name 
-			&& spell.dc == spellData.dc 
-			&& spell.ability == spellData.ability
-	})	
-	const deleteIndex = spells.indexOf(usedSpell)
-	const newSlotsUsed = slotsUsed - usedSpell.level
-	const newSpells = spells.filter((spell, i) => i != deleteIndex)
-	const flaggedItem = await liveItem.update({
-		"flags.charname.ringOfSpellStoring.spells": newSpells,
+const setRingUpdates = async (chosenSpell, item, newSlotsUsed, newSpellData) => {
+	const flagUpdate = await item.update({
+		"flags.charname.ringOfSpellStoring.spells": newSpellData,
 		"flags.charname.ringOfSpellStoring.slotsUsed": newSlotsUsed
-	})
-	const updatedDescription = await getUpdatedDescription(flaggedItem)	
-	const descUpdate = await flaggedItem.update({
+	})	
+	const updatedDescription = await getUpdatedDescription(item)	
+	const descUpdate = await item.update({
 		"system.description.value": updatedDescription
 	})	
 }
-const setDeleteUuids = async (tempItem, effect) => {
-	const deletionChange = {key: "flags.dae.deleteUuid", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: [tempItem.uuid]}
-	const updatedChanges = [...effect.changes, deletionChange]
-	effect.update({"changes": updatedChanges})		
+const setRingUpdatesNotification = async (item, level) => {
+	const slots = await getNewSlotsUsed(item, level)
+	if (slots > 5) {
+		ui.notifications.info(s.addSpellErr)
+		return true
+	}	
+	return false
 }
-const setReactionUpdates = async (spellData, tokenActor, liveItem) => {
-	console.log("SET REACTION UPDATES")
-	const [tempItem] = await createTempItem(spellData, tokenActor, liveItem)
-	updateDeleteUuidEffects(tempItem)
+const updateDeleteItemFlags = async (item, updates) => {
+	const [newSlotsUsed, newSpells] = updates
+	const flaggedItem = await item.update({
+		"flags.charname.ringOfSpellStoring.slotsUsed": newSlotsUsed,
+		"flags.charname.ringOfSpellStoring.spells": newSpells
+	})
+	const updatedDescription = await getUpdatedDescription(flaggedItem)	
+	await flaggedItem.update({
+		"system.description.value": updatedDescription
+	})		
+}
+const updateDeleteUuidEffects = async (actor, item) => {
+	const effects = await getDeleteUuidEffects(actor, item)
+	if (effects.length > 0) effects.map(effect => setDeleteUuids(item, effect))	
+}
+const updateRingItem = async (item, choices, eligibleSpellsByChar) => {	
+	const [charName, level, spellName] = choices
+	const notification = await setRingUpdatesNotification(item, level)
+	if (notification) return false
+	const [chosenSpell, newSlotsUsed, newSpellData] = await getUpdateRingData(charName, eligibleSpellsByChar, item, level, spellName)
+	setRingUpdates(chosenSpell, item, newSlotsUsed, newSpellData)
+	return chosenSpell
 }
 
 export const ringOfSpellStoring = {
 	"main": main,
-	"deleteTempItem": deleteTempItem
+	"deleteTempItem": deleteTempItem,
+	"setReactionHook": setReactionHook
 }
