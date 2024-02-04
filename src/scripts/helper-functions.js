@@ -106,6 +106,7 @@ export const getTokensInRange = async (tokens, gridSize, gridScale, itemRange, x
 		return tokenGridCoordsInRange.length > 0
 	})
 }
+export const removeEffect = async (effectUuid) => {return await MidiQOL.socket().executeAsGM("removeEffect", {effectUuid: effectUuid})}
 export const setActiveEffects = async (tokenActorUuids, effectData) => {
 	const createEffect = async (tokenActorUuid, effectData) => {return await MidiQOL.socket().executeAsGM("createEffects", {actorUuid: tokenActorUuid, effects: [effectData]})}
 	const [effects] = await Promise.all(tokenActorUuids.map(tokenActorUuid => createEffect(tokenActorUuid, effectData)))
