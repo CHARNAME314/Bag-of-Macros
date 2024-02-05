@@ -4,10 +4,10 @@ import {getDialogueButtonType, removeEffect} from "../../helper-functions.js"
 
 const getChoices = async (effects) => {
 	return effects.reduce((acc, effect, i) => {
-			const nameAlreadyUsed = acc.find(choice => choice.name == effect.name)
-			const name = nameAlreadyUsed ? effect.name + "-" + i : effect.name
-			const choice = {name: name, icon: effect.icon, uuid: effect.uuid}
-			return [...acc, choice]
+		const nameAlreadyUsed = acc.find(choice => choice.name == effect.name)
+		const name = nameAlreadyUsed ? effect.name + "-" + i : effect.name
+		const choice = {name: name, icon: effect.icon, uuid: effect.uuid}
+		return [...acc, choice]
 	}, [])
 }
 const getChosenEffect = async (effects) => {
@@ -28,14 +28,14 @@ const getPoisonEffects = () => {
 		return hasPoisonedName || hasPoisonedConditions
 	})	
 }
-const onUse = async ({item, workflow, args, token}) => {
+const onUse = async () => {
 	const poisonEffects = await getPoisonEffects()
 	if (poisonEffects.length > 0) {
 		const chosenEffect = await getChosenEffect(poisonEffects)
 		await removeEffect(chosenEffect.uuid)	
 	}
 }
-const preTargetSave = async ({item, workflow, args}) => {
+const preTargetSave = async ({item, workflow}) => {
 	const hasPoison = item.effects.find(effect => effect.changes.find(change => conditionLabels["poisoned"].includes(change.value.toLowerCase())))
 	if (hasPoison) workflow.saveDetails.advantage = true
 }
