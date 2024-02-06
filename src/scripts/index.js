@@ -18,7 +18,7 @@ Hooks.on("dnd5e.restCompleted", (actor, data) => {
 })
 
 Hooks.on("updateItem", (item, update, config, userId) => {
-	macros.dossLute.onEquip(item, update)
+	macros.dossLute.updateItem(item, update)
 })
 
 globalThis['CHARNAME'] = {
