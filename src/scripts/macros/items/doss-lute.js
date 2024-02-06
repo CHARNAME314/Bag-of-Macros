@@ -148,6 +148,8 @@ const main = async ({actor, args, token}) => {
 	//
 }
 const removeSpells = async (actor, instrument) => {
+	//this erased everything on Nora lol
+	
 	return Promise.all(actor.items.filter(item => {
 		const originName = item.flags?.charname?.instrumentOfTheBards?.originName ?? null
 		return instrument.spells.filter(spell => spell.name == originName).length > 0
@@ -161,7 +163,7 @@ const updateActorSpellList = async (item, update, instrument) => {
 		const spells = await createTempSpells(item.parent, instrument, item)	
 		await addSpells(actor, spells)		
 	} else if (equipUpdate === false || attunementUpdate == 1) {
-		await removeSpells(actor, instrument)	
+		//await removeSpells(actor, instrument)	
 	}
 }
 const updateItem = async (item, update) => {
