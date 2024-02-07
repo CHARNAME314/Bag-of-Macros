@@ -14,9 +14,11 @@ Hooks.once("socketlib.ready", () => {
 })
 
 Hooks.on("dnd5e.restCompleted", (actor, data) => {
-	macros.songOfHealing.main(actor, data)
+	macros.instrumentOfTheBards.onNewDay(actor, data)
+	macros.songOfRest.main(actor, data)
 })
 
 globalThis['CHARNAME'] = {
     macros
 }
+//test 2

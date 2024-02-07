@@ -5,6 +5,7 @@ import {daylight} from "./macros/spells/daylight.js"
 import {dispelMagic} from "./macros/spells/dispel-magic.js"
 import {feyAncestry} from "./macros/features/fey-ancestry.js"
 import {hordePassive} from "./macros/features/horde-passive.js"
+import {instrumentOfTheBards} from "./macros/items/instrument-of-the-bards.js"
 import {protectionFromPoison} from "./macros/spells/protection-from-poison.js"
 import {ringOfSpellStoring} from "./macros/items/ring-of-spell-storing.js"
 import {songOfRest} from "./macros/features/class/bard/song-of-rest.js"
@@ -18,6 +19,7 @@ export const macros = {
 	dispelMagic,
 	feyAncestry,
 	hordePassive,
+	instrumentOfTheBards,
 	protectionFromPoison,
 	ringOfSpellStoring,
 	songOfRest,

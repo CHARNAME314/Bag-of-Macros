@@ -13,3 +13,17 @@ export const ringOfSpellStoring = {
 	levelLabels:		["One", "Two", "Three", "Four", "Five"],
 	spellHeader:		"Which spell is being cast onto the ring?",
 }
+
+export const instrumentOfTheBards = {
+	instrumentSpellNames: {
+		anstruthHarp: ["Control Weather", "Cure Wounds", "Wall of Thorns"],
+		canaithMandolin: ["Cure Wounds", "Dispel Magic", "Protection from Energy (Lightning)"],
+		cliLyre: ["Stone Shape", "Wall of Fire", "Wind Wall"],
+		dossLute: ["Animal Friendship", "Protection from Energy (Fire)", "Protection from Poison"],
+		fochlucanBandore: ["Entangle", "Faerie Fire", "Shillelagh", "Speak with Animals"],
+		generic: ["Fly", "Invisibility", "Levitate", "Protection from Evil and Good"],
+		macFuirmidhCittern: ["Barkskin", "Cure Wounds", "Fog Cloud"],
+		ollamhHarp: ["Confusion", "Control Weather", "Fire Storm"]
+	},
+	initHeader: "Choose a spell to cast!"
+}
