@@ -1,6 +1,32 @@
 import {settings} from "./settings.js"
 import {socket} from "./index.js"
 
+export const checkSelfTarget = async (args, item, originTokenDoc) => {
+	const hasEffects = item.effects.size > 0
+	const isSelfTargetItem = item.target?.type == "self"
+	const originTargetingSelf = args[0].hitTargetUuids.filter(uuid => uuid == originTokenDoc.uuid).length > 0
+	return hasEffects && (isSelfTargetItem || originTargetingSelf)
+}
+export const deleteTempItem = async ({args, item, workflow}, setDeleteItemFlags) => {
+	const [tempItem, originTokenDoc, tokenActor] = await getDeleteItemData(args, item)
+	await setDeleteItemFlags(tempItem)
+	const logic = await getDeleteItemLogic(args, item, originTokenDoc, tempItem, tokenActor, workflow)
+	setDeleteItemLogic(logic, tempItem, tokenActor)
+}
+export const getDeleteItemData = async (args, item) => {
+	const tempItem = await fromUuid(item.uuid)
+	const originTokenDoc = await fromUuid(args[0].tokenUuid)
+	const tokenActor = originTokenDoc.actor	
+	return [tempItem, originTokenDoc, tokenActor]
+}
+export const getDeleteItemLogic = async (args, item, originTokenDoc, tempItem, tokenActor, workflow) => {
+	const concEffect = await MidiQOL.getConcentrationEffect(tokenActor) ?? false	
+	const hasTemplate = await fromUuid(workflow.templateUuid) ?? false
+	const selfEffects = await getSelfEffects(tempItem)
+	const hasSelfEffects = selfEffects.length > 0
+	const hasSelfTarget = await checkSelfTarget(args, item, originTokenDoc)		
+	return [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget]
+}
 export const getDialogueButtons = (resolve, choices, getIconPaths, width, height, iconData) => {	
 	return choices.reduce((buttons, choice, i) => {
 		const icon = getIconPaths(choice, iconData)
@@ -21,6 +47,15 @@ export const getDialogueButtonType = async (choices, dialogueOptions, title, get
 			buttons: buttons
 		}, dialogueOptions).render(true)
 }))}
+export const getSelfEffects = async (item) => {	
+	const itemEffects = item.effects ?? []
+	return itemEffects.filter(effect => {
+		const selfTarget = effect.flags?.dae?.selfTarget ?? false
+		const selfTargetAlways = effect.flags?.dae?.selfTargetAlways ?? false
+		if ((selfTarget || selfTargetAlways)) return true 
+		return false
+	}) ?? []
+}
 export const getSpawnLocation = async (spawnIconPath, size, interval, tokenUuid, itemRange, originToken) => {
 	await setCrosshairConfigs(tokenUuid, itemRange)
 	const distanceAvailable = itemRange
@@ -157,6 +192,20 @@ export const setCrosshairConfigs = async (tokenUuid, itemRange) => {
 	})	
 	canvas.tokens.activate()
 }
+const setDeleteItemLogic = async (logic, tempItem, tokenActor) => {
+	const [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget] = logic
+	if (concEffect) {
+		setDeleteUuids(tempItem, concEffect)
+	} else if (!concEffect && hasTemplate && !hasSelfEffects) {
+		const tempItemEffect = tokenActor.effects.find(effect => effect.origin == tempItem.uuid)			
+		setDeleteUuids(tempItem, tempItemEffect)
+	} else if (!concEffect && !hasTemplate && (hasSelfEffects || hasSelfTarget)) {
+		const tempItemEffect = tokenActor.effects.find(effect => effect.origin == tempItem.uuid)
+		setDeleteUuids(tempItem, tempItemEffect)
+	} else if (!concEffect && !hasTemplate && !hasSelfEffects && !hasSelfTarget) {
+		tempItem.delete()
+	}	
+}  
 export const setTemplateDispels = async (x, y, name, itemTemplatePositions) => {
 	const dnd5eFlaggedTemplates = canvas.scene.templates.filter(template => template.flags.dnd5e)
 	const potentialTemplates = dnd5eFlaggedTemplates.filter(template => {
