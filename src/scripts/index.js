@@ -21,4 +21,3 @@ Hooks.on("dnd5e.restCompleted", (actor, data) => {
 globalThis['CHARNAME'] = {
     macros
 }
-//test 2
