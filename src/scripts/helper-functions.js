@@ -9,7 +9,7 @@ export const checkSelfTarget = async (args, item, originTokenDoc) => {
 }
 export const deleteTempItem = async ({args, item, workflow}, setDeleteItemFlags) => {
 	const [tempItem, originTokenDoc, tokenActor] = await getDeleteItemData(args, item)
-	await setDeleteItemFlags(tempItem)
+	if (setDeleteItemFlags) await setDeleteItemFlags(tempItem)
 	const logic = await getDeleteItemLogic(args, item, originTokenDoc, tempItem, tokenActor, workflow)
 	setDeleteItemLogic(logic, tempItem, tokenActor)
 }
@@ -26,6 +26,16 @@ export const getDeleteItemLogic = async (args, item, originTokenDoc, tempItem, t
 	const hasSelfEffects = selfEffects.length > 0
 	const hasSelfTarget = await checkSelfTarget(args, item, originTokenDoc)		
 	return [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget]
+}
+export const getDeleteUuidEffects = async (actor, item) => {	
+	const hasSysConc = item.system.components?.concentration ?? false
+	const hasMidiConc = item.flags?.midiProperties?.concentration ?? false
+	const isConcentration = hasSysConc || hasMidiConc
+	const isReactionItem = item.system.activation.type == "reaction"
+	if (isConcentration && !isReactionItem) {
+		return [await MidiQOL.getConcentrationEffect(actor)]
+	}
+	return await getSelfEffects(item) ?? []
 }
 export const getDialogueButtons = (resolve, choices, getIconPaths, width, height, iconData) => {	
 	return choices.reduce((buttons, choice, i) => {
@@ -55,6 +65,15 @@ export const getSelfEffects = async (item) => {
 		if ((selfTarget || selfTargetAlways)) return true 
 		return false
 	}) ?? []
+}
+export const getSourceMacroNames = async (item) => {
+	const hasFlags = item?.flags ?? false
+	if (!hasFlags) return ""
+	const hasMidi = item.flags["midi-qol"] ?? false
+	if (!hasMidi) return ""
+	const hasMacros = item.flags["midi-qol"].onUseMacroName ?? false
+	if (!hasMacros) return ""
+	return item.flags["midi-qol"].onUseMacroName
 }
 export const getSpawnLocation = async (spawnIconPath, size, interval, tokenUuid, itemRange, originToken) => {
 	await setCrosshairConfigs(tokenUuid, itemRange)
@@ -141,6 +160,15 @@ export const getTokensInRange = async (tokens, gridSize, gridScale, itemRange, x
 		return tokenGridCoordsInRange.length > 0
 	})
 }
+export const getUpdatedMacroNames = async (macroNames, flagName, activation) => {	
+	const update = macroNames.length > 0 
+			? macroNames + `,[postRollFinished]function.CHARNAME.macros.${flagName}.deleteTempItem` 
+			: `[postRollFinished]function.CHARNAME.macros.${flagName}.deleteTempItem`
+	if (activation == "reaction") {
+		return update + `,[postActiveEffects]function.CHARNAME.macros.${flagName}.setReactionHook`
+	} 
+	return update
+}
 export const removeEffect = async (effectUuid) => {return await MidiQOL.socket().executeAsGM("removeEffect", {effectUuid: effectUuid})}
 export const setActiveEffects = async (tokenActorUuids, effectData) => {
 	const createEffect = async (tokenActorUuid, effectData) => {return await MidiQOL.socket().executeAsGM("createEffects", {actorUuid: tokenActorUuid, effects: [effectData]})}
@@ -176,6 +204,12 @@ export const setActorReagentCost = async (actorUuid, itemUuid) => {
 	}
 	return true
 }
+export const setCastSpellUpdates = async (updates, tokenActor) => {
+	const [tempItem, workflow] = updates
+	updateDeleteUuidEffects(tokenActor, tempItem)
+	const template = await fromUuid(workflow.templateUuid) ?? false
+	if (template) template.callMacro("whenCreated", {asGM: true})
+}
 export const setCrosshairConfigs = async (tokenUuid, itemRange) => {
 	const target = await fromUuid(tokenUuid)
 	const {distance} = canvas.scene.grid
@@ -192,7 +226,7 @@ export const setCrosshairConfigs = async (tokenUuid, itemRange) => {
 	})	
 	canvas.tokens.activate()
 }
-const setDeleteItemLogic = async (logic, tempItem, tokenActor) => {
+export const setDeleteItemLogic = async (logic, tempItem, tokenActor) => {
 	const [concEffect, hasTemplate, hasSelfEffects, hasSelfTarget] = logic
 	if (concEffect) {
 		setDeleteUuids(tempItem, concEffect)
@@ -206,6 +240,11 @@ const setDeleteItemLogic = async (logic, tempItem, tokenActor) => {
 		tempItem.delete()
 	}	
 }  
+export const setDeleteUuids = async (tempItem, effect) => {
+	const deletionChange = {key: "flags.dae.deleteUuid", mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: [tempItem.uuid]}
+	const updatedChanges = [...effect.changes, deletionChange]
+	effect.update({"changes": updatedChanges})		
+}
 export const setTemplateDispels = async (x, y, name, itemTemplatePositions) => {
 	const dnd5eFlaggedTemplates = canvas.scene.templates.filter(template => template.flags.dnd5e)
 	const potentialTemplates = dnd5eFlaggedTemplates.filter(template => {
@@ -219,4 +258,8 @@ export const setTemplateDispels = async (x, y, name, itemTemplatePositions) => {
 	const templatesInRange = getTemplatesInRange(potentialTemplates, canvas.scene.grid.size, canvas.scene.grid.distance, 60, x, y)
 	const templatesWithOverlap = getTemplatesWithOverlap(templatesInRange, itemTemplatePositions)
 	templatesWithOverlap.map(template => {socket.executeAsGM("setMeasuredTemplateDelete", template.uuid)})
+}
+export const updateDeleteUuidEffects = async (actor, item) => {
+	const effects = await getDeleteUuidEffects(actor, item)
+	if (effects.length > 0) effects.map(effect => setDeleteUuids(item, effect))	
 }

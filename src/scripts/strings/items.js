@@ -16,14 +16,22 @@ export const ringOfSpellStoring = {
 
 export const instrumentOfTheBards = {
 	instrumentSpellNames: {
-		anstruthHarp: ["Control Weather", "Cure Wounds", "Wall of Thorns"],
-		canaithMandolin: ["Cure Wounds", "Dispel Magic", "Protection from Energy (Lightning)"],
-		cliLyre: ["Stone Shape", "Wall of Fire", "Wind Wall"],
-		dossLute: ["Animal Friendship", "Protection from Energy (Fire)", "Protection from Poison"],
-		fochlucanBandore: ["Entangle", "Faerie Fire", "Shillelagh", "Speak with Animals"],
-		generic: ["Fly", "Invisibility", "Levitate", "Protection from Evil and Good"],
+		anstruthHarp: 		["Control Weather", "Cure Wounds", "Wall of Thorns"],
+		canaithMandolin: 	["Cure Wounds", "Dispel Magic", "Protection from Energy (Lightning)"],
+		cliLyre: 			["Stone Shape", "Wall of Fire", "Wind Wall"],
+		dossLute: 			["Animal Friendship", "Protection from Energy (Fire)", "Protection from Poison"],
+		fochlucanBandore: 	["Entangle", "Faerie Fire", "Shillelagh", "Speak with Animals"],
+		generic: 			["Fly", "Invisibility", "Levitate", "Protection from Evil and Good"],
 		macFuirmidhCittern: ["Barkskin", "Cure Wounds", "Fog Cloud"],
-		ollamhHarp: ["Confusion", "Control Weather", "Fire Storm"]
+		ollamhHarp: 		["Confusion", "Control Weather", "Fire Storm"]
 	},
-	initHeader: "Choose a spell to cast!"
+	initHeader: 			"Choose a spell to cast!"
+}
+
+export const staffOfSwarmingInsects = {
+	allChoices: 		["Giant Insect", "Insect Cloud", "Insect Plague", "Melee (1h)", "Melee (2h)"],
+	damageWeaponName:	"Staff of Swarming Insects - Damage",
+	initHeader: 		"What do you want to do?",
+	meleeChoices: 		["Melee (1h)", "Melee (2h)"],
+	spellNames: 		["Giant Insect", "Insect Cloud", "Insect Plague"]
 }

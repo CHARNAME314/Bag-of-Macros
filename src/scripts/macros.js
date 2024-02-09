@@ -9,6 +9,7 @@ import {instrumentOfTheBards} from "./macros/items/instrument-of-the-bards.js"
 import {protectionFromPoison} from "./macros/spells/protection-from-poison.js"
 import {ringOfSpellStoring} from "./macros/items/ring-of-spell-storing.js"
 import {songOfRest} from "./macros/features/class/bard/song-of-rest.js"
+import {staffOfSwarmingInsects} from "./macros/items/staff-of-swarming-insects.js"
 import {wandOfFear} from "./macros/items/wand-of-fear.js"
 
 export const macros = {
@@ -23,5 +24,6 @@ export const macros = {
 	protectionFromPoison,
 	ringOfSpellStoring,
 	songOfRest,
+	staffOfSwarmingInsects,
 	wandOfFear
 }

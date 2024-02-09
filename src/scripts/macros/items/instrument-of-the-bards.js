@@ -189,7 +189,7 @@ const updateDeleteUuidEffects = async (actor, item) => {
 	if (effects.length > 0) effects.map(effect => setDeleteUuids(item, effect))	
 }
 const onUse = async ({actor, args, item, token, workflow}) => {
-	const type = item.flags?.charname?.instrumentOfTheBards.type ?? "spell"
+	const type = item.flags?.charname?.instrumentOfTheBards?.type ?? "spell"
 	if (type == "spell") return false	
 	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
 	const liveItem = await fromUuid(item.uuid)		
