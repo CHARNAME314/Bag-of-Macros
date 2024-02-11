@@ -13,6 +13,31 @@ export const deleteTempItem = async ({args, item, workflow}, setDeleteItemFlags)
 	const logic = await getDeleteItemLogic(args, item, originTokenDoc, tempItem, tokenActor, workflow)
 	setDeleteItemLogic(logic, tempItem, tokenActor)
 }
+export const deleteAuraEffectsWhenMoved = async (effectName, newTokenActorUuids, oldTokenActorUuids, originUuid) => {
+	const removalUuids = oldTokenActorUuids.filter(uuid => !newTokenActorUuids.includes(uuid))
+	await removalUuids.forEach(actorUuid => {
+		const actor = fromUuidSync(actorUuid)	
+		const tokenEffect = actor.effects.find(effect => 
+			effect.name == effectName
+		 && effect.origin == originUuid
+		)
+		if (!tokenEffect) return false
+		removeEffect(tokenEffect.uuid)
+	})	
+}
+export const getAuraParamsWhenMoved = async (dispositions, getEffectData, template, flagName) => {
+	const effectData = await getEffectData(template.flags["midi-qol"].actorUuid, template.uuid)
+	const newTokenIds = game.modules.get("templatemacro").api.findContained(template)
+	const newTokens = newTokenIds.map(id => 
+		canvas.scene.collections.tokens.get(id)
+	).filter(tokenDoc => 
+		tokenDoc.id != template.flags["midi-qol"].tokenId
+	 && dispositions.includes(tokenDoc.disposition)
+	)
+	const newTokenActorUuids = newTokens.map(token => token.actor.uuid)
+	const oldTokenActorUuids = template.flags.charname[flagName].tokenActorsEffected
+	return [effectData, newTokenActorUuids, oldTokenActorUuids]
+}
 export const getDeleteItemData = async (args, item) => {
 	const tempItem = await fromUuid(item.uuid)
 	const originTokenDoc = await fromUuid(args[0].tokenUuid)
@@ -169,7 +194,12 @@ export const getUpdatedMacroNames = async (macroNames, flagName, activation) => 
 	} 
 	return update
 }
-export const removeEffect = async (effectUuid) => {return await MidiQOL.socket().executeAsGM("removeEffect", {effectUuid: effectUuid})}
+export const removeEffect = async (effectUuid) => {
+	return await MidiQOL.socket().executeAsGM("removeEffect", {effectUuid: effectUuid})
+}
+export const removeEffects = async (effectUuids) => {
+	return await MidiQOL.socket().executeAsGM("removeEffects", effectUuids
+)}
 export const setActiveEffects = async (tokenActorUuids, effectData) => {
 	const createEffect = async (tokenActorUuid, effectData) => {return await MidiQOL.socket().executeAsGM("createEffects", {actorUuid: tokenActorUuid, effects: [effectData]})}
 	const [effects] = await Promise.all(tokenActorUuids.map(tokenActorUuid => createEffect(tokenActorUuid, effectData)))
@@ -203,6 +233,53 @@ export const setActorReagentCost = async (actorUuid, itemUuid) => {
 		return false
 	}
 	return true
+}
+export const setAuraEffectUpdatesWhenDeleted = async (effectName, flagName, template) => {
+	const tokenActorsEffected = template.flags?.charname[flagName]?.tokenActorsEffected ?? []
+	const effectUuids = await tokenActorsEffected.forEach(actorUuid => {
+		const actor = fromUuidSync(actorUuid)			
+		const effect = actor.effects.find(effect => effect.name == effectName)	
+		if (!effect) return false
+		removeEffect(effect.uuid)
+	})	
+}
+export const setAuraEffectsWhenEntered = async (effectName, flagName, getEffectData, template, token) => {
+	const tokenEffect = token.actor?.effects.find(effect => effect.name == effectName) ?? false
+	if (!tokenEffect) {
+		const effectData = await getEffectData(template.flags["midi-qol"].actorUuid, template.uuid)
+		setActiveEffects([token.actor.uuid], effectData)
+		const newActorUuids = [
+			...template.flags.charname.insectCloud.tokenActorsEffected, 
+			token.actor.uuid
+		]
+		const flag = `flags.charname.${flagName}.tokenActorsEffected`
+		const updatedTemplate = await template.update({
+			[flag]: newActorUuids
+		})			
+	}	
+}
+export const setAuraEffectsWhenLeft = async (effectName, flagName, template, token) => {
+	const tokenEffect = token.actor?.effects.find(effect => effect.name == effectName) ?? false
+	if (tokenEffect) {
+		removeEffect(tokenEffect.uuid)
+		const newActorUuids = template.flags.charname[flagName].tokenActorsEffected.filter(actorUuid => 
+			actorUuid != token.actor.uuid
+		)
+		const flag = `flags.charname.${flagName}.tokenActorsEffected`
+		const updatedTemplate = await template.update({
+			[flag]: newActorUuids
+		})			
+	}	
+}
+export const setAuraEffectsWhenMoved = async (effectData, flagName, newTokenActorUuids, oldTokenActorUuids, template) => {
+	const newUuidsToEffect = newTokenActorUuids.filter(uuid => 
+		!oldTokenActorUuids.includes(uuid)
+	)
+	setActiveEffects(newUuidsToEffect, effectData)	
+	const flag = `flags.charname.${flagName}.tokenActorsEffected`
+	template.update({
+		[flag]: newTokenActorUuids
+	})		
 }
 export const setCastSpellUpdates = async (updates, tokenActor) => {
 	const [tempItem, workflow] = updates
@@ -258,6 +335,40 @@ export const setTemplateDispels = async (x, y, name, itemTemplatePositions) => {
 	const templatesInRange = getTemplatesInRange(potentialTemplates, canvas.scene.grid.size, canvas.scene.grid.distance, 60, x, y)
 	const templatesWithOverlap = getTemplatesWithOverlap(templatesInRange, itemTemplatePositions)
 	templatesWithOverlap.map(template => {socket.executeAsGM("setMeasuredTemplateDelete", template.uuid)})
+}
+export const updateAuraEffectsOnUse = async (actor, args, effectName, getEffectData, tokenActorUuids) => {
+	const effectData = await getEffectData(actor.uuid, args[0].templateUuid)
+	const [appliedEffect] = await setActiveEffects(tokenActorUuids, effectData)
+	const liveActor = await fromUuid(actor.uuid)
+	const templateEffect = liveActor.effects.find(effect => effect.name == effectName)
+	const updatedChanges = [...templateEffect.changes, ...appliedEffect.changes]
+	templateEffect.update({"changes": updatedChanges})
+}
+export const updateAuraFlags = async (flagName, template, tokenActorUuids) => {
+	const flag = `flags.charname.${flagName}.tokenActorsEffected`
+	const updatedTemplate = await template.update({
+		[flag]: tokenActorUuids
+	})		
+}
+export const updateAuraWhenMoved = async (dispositions, effectName, flagName, getEffectData, template) => {
+	const [
+		effectData, 
+		newTokenActorUuids, 
+		oldTokenActorUuids
+	] = await getAuraParamsWhenMoved(dispositions, getEffectData, template, flagName)
+	deleteAuraEffectsWhenMoved(
+		effectName, 
+		newTokenActorUuids, 
+		oldTokenActorUuids,		
+		template.flags["midi-qol"].actorUuid
+	)
+	setAuraEffectsWhenMoved(
+		effectData, 
+		flagName, 
+		newTokenActorUuids, 
+		oldTokenActorUuids, 
+		template
+	)	
 }
 export const updateDeleteUuidEffects = async (actor, item) => {
 	const effects = await getDeleteUuidEffects(actor, item)

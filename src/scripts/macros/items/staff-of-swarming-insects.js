@@ -3,14 +3,9 @@ import {
 	getDialogueButtonType, 
 	getSourceMacroNames, 
 	getUpdatedMacroNames, 
-	setCastSpellUpdates
+	setCastSpellUpdates,
 } from "../../helper-functions.js"
 import {staffOfSwarmingInsects as s} from "../../strings/items.js"
-
-//TODO:
-//make sure Insect Cloud's item deletion is working as intended
-//make sure the item is equipped and attuned before doing anything
-//for insect cloud, add effect to make people blind but also have "grand disadvantage on attacked" flags?
 
 const castSpell = async (spell, staff, tokenActor, choice) => {
 	const updates = await createCastWorkflow(spell, staff, tokenActor, choice)
@@ -37,7 +32,7 @@ const getChosenItem = async (choice, spells) => {
 		return spells.find(spell => spell.name == choice)		
 	}	
 }
-const getConsumptionAmount = async (choice) => {
+const getConsumptionAmount = async (spell, choice) => {
 	if (choice == s.allChoices[0]) {
 		return 4
 	} else if (choice == s.allChoices[1]) {
@@ -46,6 +41,16 @@ const getConsumptionAmount = async (choice) => {
 		return 5
 	} else {
 		return 0
+	}
+}
+const getDamage = async (spell, choice) => {
+	const weapon = game.items.find(item => item.name == s.damageWeaponName)
+	if (choice == s.allChoices[3] || choice == s.allChoices[4]) {
+		return choice == s.allChoices[4] 
+			? ["1d8 + @mod", "bludgeoning"] 
+			: ["1d6 + @mod", "bludgeoning"]
+	} else {
+		return spell.system.damage.parts
 	}
 }
 const getSpellIconPaths = (choice, spells) => {
@@ -66,7 +71,9 @@ const getSpellsToCast = async (staff) => {
 			||  (spell == arr[1] && staff.system.uses.value >= 1)
 			||  (spell == arr[2] && staff.system.uses.value >= 5))
 	})
-	const choices = [...s.meleeChoices, ...filteredSpellNames].sort()
+	const choices = staff.system.attunement == 2 ? 
+		[...s.meleeChoices, ...filteredSpellNames].sort() : 
+		s.meleeChoices.sort()
 	return [choices, spells]
 }
 const getTempSpellItem = async (spell, staff, updatedMacroNames, choice) => {
@@ -87,8 +94,7 @@ const getTempSpellItem = async (spell, staff, updatedMacroNames, choice) => {
 }
 const getTempSpellItemMods = async (spell, staff, choice) => {
 	const amount = await getConsumptionAmount(choice)
-	const weapon = game.items.find(item => item.name == s.damageWeaponName)
-	const damage = choice == s.allChoices[4] ? ["1d8 + @mod", "bludgeoning"] : weapon.system.damage.parts
+	const damage = await getDamage(spell, choice)
 	const item = choice == s.allChoices[3] || choice == s.allChoices[4] ? weapon : spell
 	const name = item.name == s.damageWeaponName ? staff.name : spell.name
 	const prep = choice == s.allChoices[3] || choice == s.allChoices[4] ? null : "innate"
@@ -96,17 +102,9 @@ const getTempSpellItemMods = async (spell, staff, choice) => {
 	return [amount, damage, item, name, prep, type]
 }
 const onUse = async ({actor, args, item, token, workflow}) => {
-	
-	console.log("BEANS")
 	const staff = await fromUuid(item.uuid)
-	console.log("staff")
-	console.log(staff)
-	//choose spell 
+	if (!staff.system.equipped) return false
 	const [choices, spells] = await getSpellsToCast(staff)
-	console.log("choices")
-	console.log(choices)
-	console.log("spells")
-	console.log(spells)
 	const choice = await getDialogueButtonType(
 		choices, 
 		{width: choices.length * 150, height: "100%"}, 
@@ -116,17 +114,12 @@ const onUse = async ({actor, args, item, token, workflow}) => {
 		60, 
 		spells
 	)
-	console.log("choice")
-	console.log(choice.value)
 	const chosenItem = await getChosenItem(choice.value, spells)
 	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
-	console.log("chosenItem")
-	console.log(chosenItem)	
-	//cast spell
 	castSpell(chosenItem, staff, tokenActor, choice.value)	
 }
 
 export const staffOfSwarmingInsects = {
 	deleteTempItem,
-	onUse
+	onUse	
 }

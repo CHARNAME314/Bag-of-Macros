@@ -29,9 +29,10 @@ export const instrumentOfTheBards = {
 }
 
 export const staffOfSwarmingInsects = {
-	allChoices: 		["Giant Insect", "Insect Cloud", "Insect Plague", "Melee (1h)", "Melee (2h)"],
-	damageWeaponName:	"Staff of Swarming Insects - Damage",
-	initHeader: 		"What do you want to do?",
-	meleeChoices: 		["Melee (1h)", "Melee (2h)"],
-	spellNames: 		["Giant Insect", "Insect Cloud", "Insect Plague"]
+	allChoices: 			["Giant Insect", "Insect Cloud", "Insect Plague", "Melee (1h)", "Melee (2h)"],
+	damageWeaponName:		"Staff of Swarming Insects - Damage",
+	flagName:				"staffOfSwarmingInsects",
+	initHeader: 			"What do you want to do?",
+	meleeChoices: 			["Melee (1h)", "Melee (2h)"],
+	spellNames: 			["Giant Insect", "Insect Cloud", "Insect Plague"],
 }
