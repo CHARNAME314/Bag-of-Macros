@@ -101,14 +101,14 @@ export const getSourceMacroNames = async (item) => {
 	return item.flags["midi-qol"].onUseMacroName
 }
 export const getSpawnLocation = async (spawnIconPath, size, interval, tokenUuid, itemRange, originToken) => {
-	await setCrosshairConfigs(tokenUuid, itemRange)
+	await setCrosshairConfigs(tokenUuid, itemRange, size)
 	const distanceAvailable = itemRange
 	let crosshairsDistance = 0
 	const checkDistance = async (crosshairs) => {
 		while (crosshairs.inFlight) {
 			await warpgate.wait(100)
 			const ray = new Ray(originToken.center, crosshairs)
-			const distance = canvas.grid.measureDistances([{ ray }], { gridSpaces: true })[0]
+			const distance = Math.ceil(canvas.grid.measureDistances([{ ray }], { gridSpaces: false })[0] / 5) * 5
 			if (crosshairsDistance !== distance) {
 				crosshairsDistance = distance;
 				if (distance > distanceAvailable) {
@@ -287,18 +287,21 @@ export const setCastSpellUpdates = async (updates, tokenActor) => {
 	const template = await fromUuid(workflow.templateUuid) ?? false
 	if (template) template.callMacro("whenCreated", {asGM: true})
 }
-export const setCrosshairConfigs = async (tokenUuid, itemRange) => {
+export const setCrosshairConfigs = async (tokenUuid, itemRange, size) => {
 	const target = await fromUuid(tokenUuid)
 	const {distance} = canvas.scene.grid
+	const adjustment = size > 0 
+		? (canvas.grid.size * .5 * size) 
+		: (canvas.grid.size * .5)
 	warpgate.crosshairs.show({
 		lockSize:true,
 		lockPosition: true,
-		size: target.width + (2*itemRange/distance),
+		size: 2 * itemRange / distance,
 		tag: 'range',
 		drawIcon:false,
 		label: 'Valid Area',
-		x: target.x,
-		y: target.y,
+		x: target.x + adjustment,
+		y: target.y + adjustment,
 		rememberControlled: true
 	})	
 	canvas.tokens.activate()

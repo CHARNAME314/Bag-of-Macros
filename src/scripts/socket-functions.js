@@ -7,14 +7,6 @@ export const setAmbientLightDelete = async (ambientLightId) => {
 	canvas.tokens.activate()
 	return ambientLight
 }
-export const setMeasuredTemplateDelete = async (templateUuid) => {
-	const template = await fromUuid(templateUuid) ?? false
-	if (!template) return false
-	const deletedMeasuredTemplate = await canvas.scene.deleteEmbeddedDocuments("MeasuredTemplate", [template._id])
-	//can probably be improved to go back to whatever layer you had selected before, even if not token
-	canvas.tokens.activate()
-	return deletedMeasuredTemplate
-}
 export const setActiveEffectDelete = async (ownerActor, effectId) => {	
 	const [deleteEffect] = ownerActor.effects.filter(effect => effect._id == effectId)	
 	return await ownerActor.deleteEmbeddedDocuments("ActiveEffect", [deleteEffect._id])
@@ -29,4 +21,15 @@ export const setDeleteSummonConcentrationHook = async (actor, spawnedTokenUuid) 
 			concEffect.delete()				
 		}
 	})			
+}
+export const setMeasuredTemplateDelete = async (templateUuid) => {
+	const template = await fromUuid(templateUuid) ?? false
+	if (!template) return false
+	const deletedMeasuredTemplate = await canvas.scene.deleteEmbeddedDocuments("MeasuredTemplate", [template._id])
+	//can probably be improved to go back to whatever layer you had selected before, even if not token
+	canvas.tokens.activate()
+	return deletedMeasuredTemplate
+}
+export const setSpawnedTokensInitiative = async (combatDocs, init) => {
+	combatDocs.forEach(doc => doc.update({"initiative": init}))
 }

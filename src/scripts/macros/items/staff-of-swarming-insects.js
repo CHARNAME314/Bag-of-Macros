@@ -32,7 +32,7 @@ const getChosenItem = async (choice, spells) => {
 		return spells.find(spell => spell.name == choice)		
 	}	
 }
-const getConsumptionAmount = async (spell, choice) => {
+const getConsumptionAmount = async (choice) => {
 	if (choice == s.allChoices[0]) {
 		return 4
 	} else if (choice == s.allChoices[1]) {

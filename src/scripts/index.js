@@ -11,11 +11,16 @@ Hooks.once("socketlib.ready", () => {
 	socket.register("setAmbientLightDelete", sf.setAmbientLightDelete)
 	socket.register("setDeleteSummonConcentrationHook", sf.setDeleteSummonConcentrationHook)
 	socket.register("setMeasuredTemplateDelete", sf.setMeasuredTemplateDelete)
+	socket.register("setSpawnedTokensInitiative", sf.setSpawnedTokensInitiative)
 })
 
 Hooks.on("dnd5e.restCompleted", (actor, data) => {
 	macros.instrumentOfTheBards.onNewDay(actor, data)
 	macros.songOfRest.main(actor, data)
+})
+
+Hooks.on("preDeleteToken", (tokenDoc, config, user) => {
+	macros.summoning.onPreDeleteToken(tokenDoc, config, user)
 })
 
 globalThis['CHARNAME'] = {
