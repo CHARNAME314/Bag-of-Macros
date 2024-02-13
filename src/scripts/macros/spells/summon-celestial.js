@@ -1,77 +1,22 @@
 import {getDialogueButtonType} from "../../helper-functions.js"
-import {summonCelestial as s} from "../../strings/spells.js"
+import {summonCelestial as exceptionStrings} from "../../exceptions"
+import {summonCelestial as defaultStrings} from "../../strings/spells.js"
 import {summoning} from "../../helpers/summons.js"
 
-const getOverrides = async () => {
-	return {
-		general: {
-			amountToSpawnByIndex: [10, 3, 5, 1]
-		}
-	}
-}
-const getSpellIconPaths = (choice) => {
-	const index = s.choices.indexOf(choice)
-	const actor = game.actors.find(actor => actor.name == s.spawnNames[index])
-	const icon = actor?.img ?? false	
-	if (!icon) return s.defaultIcons[index]
-	return icon
-}
-const onUse = async ({actor, args, item, token, workflow}) => {
-	const choice = await getDialogueButtonType(
-		s.choices, 
-		{width: s.choices.length * 150, height: "100%"}, 
-		s.initHeader, 
-		getSpellIconPaths, 
-		60, 
-		60, 
-		[]
+const getCreateSpawnParams = async (actor, args, choice, s) => {
+	const spawnName = s.spawnNames[s.choices.indexOf(choice)]
+	const mutations = await getSpawnUpdates(
+		actor, 
+		args,
+		choice,
+		s,
+		spawnName
 	)
-	const overrides = await getOverrides(actor, workflow)
-	summoning.createSpawn(actor, choice.value, item, overrides, s, token) 
+	const overrides = await getOverrides(mutations, s)	
+	return [mutations, overrides, spawnName]
 }
-
-export const summonCelestial = {
-	onUse
-}
-
-const getButtonData = async() => {
-	const img1 = await getSpawnIcon("Celestial Spirit Avenger")
-	const img2 = await getSpawnIcon("Celestial Spirit Defender")
-	return {
-		buttons: [{
-			label: `<br /><img align=middle src="${img1}" width="75" height="75" style="border:0px"><br />Celestial Spirit Avenger`,
-			value: {
-					token: { name:"Celestial Spirit Avenger"},
-					actor: { name:"Celestial Spirit Avenger"},
-					embedded: { Item: {}}
-				}
-		},{
-			label: `<br /><img align=middle src="${img2}" width="75" height="75" style="border:0px"><br />Celestial Spirit Defender`,
-			value: {
-					token: { name:"Celestial Spirit Defender"},
-					actor: { name:"Celestial Spirit Defender"},
-					embedded: { Item: {}}
-				}
-		}], 
-		title: 'Which celestial spirit?'
-	}
-}
-const getInitImpactSequencerPath = async () => {
-	if (actor.name == "Jakar" || actor.name == "Jakar (Test)") {
-		return "jb2a.impact.011.dark_purple"
-	} else {
-		return "jb2a.impact.003.blue"
-	}	
-}
-const getHookImpactSequencerPath = async () => {
-	if (actor.name == "Jakar" || actor.name == "Jakar (Test)") {
-		return "jb2a.impact.003.dark_purple"
-	} else {
-		return "jb2a.impact.004.blue"
-	}	
-}
-const getItemUpdates = async (spawnName, originAttack, level) => {
-	if (spawnName == "Celestial Spirit Avenger") {
+const getItemUpdates = async (s, spawnName, originAttack, level) => {
+	if (spawnName == s.spawnNames[0]) {
 		return {
 			'Radiant Bow': {
 				'data.damage.parts' : [[`2d6 + 2 + ${level}`, `radiant`]],
@@ -87,60 +32,116 @@ const getItemUpdates = async (spawnName, originAttack, level) => {
 		}
 	}
 }
-const getSpawnBaseAc = async (spawnName) => {
-	if (spawnName == "Celestial Spirit Avenger") {
-		return baseAC = 11
-	} else {
-		return baseAC = 13
+const getOverrides = async (mutations, s) => {
+	const sequencer = await getSequencerData(s)
+	return {
+		warpGate: {
+			mutations
+		},
+		sequencer
 	}
+}
+const getSequencerData = async (s) => {
+	if (s.sequencerData) return s.sequencerData
+	return {
+		options: {
+			circleNum: "02",
+			color: "blue",
+			fadeIn: {ms: 450},
+			impactNum1: "004",
+			impactNum2: "003",
+			scale: .15,
+			school: "conjuration"
+		}
+	}
+}
+const getSpawnBaseAc = async (s, spawnName) => {
+	return spawnName == s.spawnNames[0] ? 11 : 13
 }
 const getSpawnDc = async (spawnName, originProf) => {
-	if (spawnName == "Celestial Spirit Avenger") {
-		return await getSpawnData('Actor.YBMH6vqEyEOOmaXh', originProf)
-	} else {
-		return await getSpawnData('Actor.jyXBptg69KwWqoej', originProf)
-	}
-}
-const getSpawnData = async (spawnActorId, originProf) => {
-	const spawnData = await fromUuid(spawnActorId)
+	const spawnData = game.actors.find(actor => actor.name == spawnName)
 	const spawnMod = spawnData.system.abilities.wis.mod 
 	return originProf + spawnMod + 8
 }
-const getSpawnIcon = async(spawnName) => {
-	//this is where we can change the logic to point to an exceptions file 
-	if (spawnName == "Celestial Spirit Avenger" && (actor.name == "Jakar" || actor.name == "Jakar (Test)")) {
-		return "images/Tokens/Creatures/Celestial/Solar_Large_Scale200_Celestial_A_11.webp"
-	} else if (spawnName == "Celestial Spirit Defender" && (actor.name == "Jakar" || actor.name == "Jakar (Test)")) {
-		return "images/Tokens/Creatures/Celestial/Planetar_Large_Scale150_Celestial_11.webp"
-	} else if (spawnName == "Celestial Spirit Avenger" && (actor.name != "Jakar" || actor.name != "Jakar (Test)")) {
-		return "images/Tokens/Creatures/Celestial/Solar_Large_Scale200_Celestial_A_01.webp"
-	} else {
-		return "images/Tokens/Creatures/Celestial/Planetar_Large_Scale150_Celestial_01.webp"
+const getSpawnUpdates = async (actor, args, choice, s, spawnName) => {
+	const [	
+		ac,
+		hp,	
+		level,
+		originAttack,
+		originDc,
+		originLevel, 
+		originProf,
+		spawnDc,
+		texture
+	] = await getSpawnParams(actor, args, choice, s, spawnName)
+	return {
+		token: {
+			"displayName": CONST.TOKEN_DISPLAY_MODES.HOVER,
+			"texture.src": texture
+		},
+		actor: {
+			"data.attributes.ac.flat" : ac,
+			"data.attributes.hp" : hp,
+			"data.details.cr" : originLevel,
+			"data.bonuses.spell.dc": spawnDc,
+			"img": texture
+		},
+		embedded: { 
+			Item: await getItemUpdates(s, spawnName, originAttack, level)
+		}		
 	}
 }
-const getSpawnUpdates = async (spawnName) => {
-	//this is where our updates are going to live
-	const originDc = actor.system.attributes.spelldc5
+const getSpawnParams = async (actor, args, choice, s, spawnName) => {
+	const originDc = actor.system.attributes.spelldc
 	const originAttack = originDc - 8
 	const originLevel = actor.system.details.level ?? actor.system.details.cr
 	const originProf = actor.system.attributes.prof
+	const texture =  s.defaultIcons[s.choices.indexOf(choice)]
 	const level = args[0].spellLevel	
-	const spawnDc = await getSpawnDc(spawnName, originProf)
-	
-	return {
-		token: {
-			'displayName': CONST.TOKEN_DISPLAY_MODES.HOVER,
-			'alpha': 0,
-			'texture.src': await getSpawnIcon(spawnName)
-		},
-		actor: {
-			'data.attributes.ac.flat' : await getSpawnBaseAc(spawnName) + level,
-			'data.attributes.hp' : {value: 40+10*(level-5), max: 40+10*(level-5)},
-			'data.details.cr' : originLevel,
-			'data.bonuses.spell.dc': spawnDc
-		},
-		embedded: { 
-			Item: await getItemUpdates(spawnName, originAttack, level)
-		}		
-	}
+	const ac = await getSpawnBaseAc(s, spawnName) + level
+	const hp = {value: 40+10*(level-5), max: 40+10*(level-5)}
+	const spawnDc = await getSpawnDc(spawnName, originProf)	
+	return [	
+		ac,
+		hp,
+		level,
+		originAttack,
+		originDc,
+		originLevel, 
+		originProf,
+		spawnDc,
+		texture
+	]
+}
+const getChoiceIconPaths = (choice, s) => {
+	const index = s.choices.indexOf(choice)	
+	if (s.exceptionActorNames) return s.defaultIcons[index]
+	const actor = game.actors.find(actor => actor.name == s.spawnNames[index])
+	const icon = actor?.img ?? false	
+	if (!icon) return s.defaultIcons[index]
+	return icon
+}
+const onUse = async ({actor, args, item, token, workflow}) => {
+	const s = exceptionStrings.exceptionActorNames.includes(actor.name) 
+		? exceptionStrings 
+		: defaultStrings
+	const choice = await getDialogueButtonType(
+		s.choices, 
+		{width: "125%", height: "100%"}, 
+		s.initHeader, 
+		getChoiceIconPaths, 
+		100, 
+		100, 
+		s
+	)
+	const [
+		mutations, 
+		overrides, 
+		spawnName
+	] = await getCreateSpawnParams(actor, args, choice.value, s)
+	summoning.createSpawn(actor, choice.value, item, overrides, s, token) 
+}
+export const summonCelestial = {
+	onUse
 }

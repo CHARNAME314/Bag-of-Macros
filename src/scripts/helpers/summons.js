@@ -9,8 +9,6 @@ import {setSpawnedTokensInitiative}  from "../socket-functions.js"
 
 //leaving as example of how override data is more or less laid out 
 //don't forget to toString() your functions before passing them!
-//spellLevel = workflow.castData.castLevel,
-//spelldc = actor.system.attributes.spelldc
 //overrides: {
 //	general: {
 //		amountToSpawnByIndex: [10, 3, 5, 1]
@@ -22,13 +20,18 @@ import {setSpawnedTokensInitiative}  from "../socket-functions.js"
 //		options: {
 //			circleNum: "02",
 //			color: "green",
+//			impactNum: "011"
 //			scale: .15,
 //			school: "conjuration"
 //	}},
-//	mutations: {
-//	  token: {},
-//		actor: {
-//			//
+//	warpGate: {
+//		callbacks: callbackFunc.toString()
+//		mutations: {
+//			token: {},
+//			actor: {}
+//		},
+//		options: {
+//			controllingActor: actor
 //		}
 //	}
 //}
@@ -63,7 +66,14 @@ const createSpawnTokens = async (actor, choice, concEffect, item, overrides, str
 		return token.uuid
 	})	
 }
+const getAmountToSpawn = async (choice, overrides, strings) => {
+	const overrideAmountToSpawn = overrides?.general?.amountToSpawnByIndex ?? 1
+	if (typeof overrideAmountToSpawn == "number") return overrideAmountToSpawn
+	return overrideAmountToSpawn[strings.choices.indexOf(choice)]	
+}
 const getCallbacks = async (i, overrides, size, spawnName, originToken) => {
+	const overrideCallbacks = overrides?.warpGate?.callbacks ?? []
+	if (overrideCallbacks.length > 0) return eval(overrideCallbacks)
 	return {
 		pre: async (loc) => {
 			usePreEffectSequencer(i, loc, originToken, size, overrides)
@@ -83,10 +93,11 @@ const getConcEffect = async (token) => {
 }
 const getPreDeleteParams = async (tokenDoc) => {
 	const amountSpawned = tokenDoc.actor?.flags?.charname?.summoning?.amountSpawned ?? 1	
+	const overrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides ?? false
 	const deleteOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.delete ?? false	
 	const effectUuid = tokenDoc.actor?.flags?.charname?.summoning?.concEffect ?? false
 	const optionOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.options ?? {}	
-	return [amountSpawned, deleteOverrides, effectUuid, optionOverrides]
+	return [amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides]
 }
 const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) => {
 	const circleNum = overrides?.sequencer?.options?.circleNum ?? "02"
@@ -97,30 +108,28 @@ const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) =
 	const spawnScale = spawnSize * scale	
 	return [circleNum, color, school, originScale, spawnScale]
 }
-const getSpawnDetails = async (actorName) => {
-	const actor = game.actors.find(actor => actor.name == actorName)
-	const iconPath = actor.prototypeToken.texture.src
+const getSpawnDetails = async (choice, spawnName, strings) => {
+	const actor = game.actors.find(actor => actor.name == spawnName)
+	const iconPath = await getTexturePath(actor, choice, strings)//actor.prototypeToken.texture.src
 	const size = Math.max(actor.prototypeToken.height, actor.prototypeToken.height)
 	return [iconPath, size]
 }
 const getSpawnParams = async (actor, choice, concEffect, item, overrides, strings, token) => {
-	const options = {controllingActor: actor}
+	const options = overrides?.warpGate?.options ?? {controllingActor: actor}
 	const spawnName = strings.spawnNames[strings.choices.indexOf(choice)]
-	const [iconPath, size] = await getSpawnDetails(spawnName)
+	const [iconPath, size] = await getSpawnDetails(choice, spawnName, strings)
 	const amountToSpawn = await getAmountToSpawn(choice, overrides, strings)
-	const updates = await getSpawnUpdates(amountToSpawn, concEffect, overrides)
+	const updates = await getSpawnUpdates(amountToSpawn, concEffect, overrides, token)
 	const interval = size % 2 == 1 ? -1 : 1
 	return {amountToSpawn, iconPath, interval, options, size, spawnName, updates}
 }
-const getAmountToSpawn = async (choice, overrides, strings) => {
-	const overrideAmountToSpawn = overrides?.general?.amountToSpawnByIndex ?? 1
-	if (typeof overrideAmountToSpawn == "number") return overrideAmountToSpawn
-	return overrideAmountToSpawn[strings.choices.indexOf(choice)]	
-}
-const getSpawnUpdates = async (amountToSpawn, concEffect, overrides) => {
+const getSpawnUpdates = async (amountToSpawn, concEffect, overrides, token) => {
 	const concEffectUuid = !concEffect ? null : concEffect.uuid
 	const defaultMutations = {
-		token: {"alpha": 0}, 
+		token: {
+			"alpha": 0,
+			"disposition": token.document.disposition
+		}, 
 		actor: 
 		{
 			"flags.charname.summoning.amountSpawned": amountToSpawn,
@@ -128,8 +137,16 @@ const getSpawnUpdates = async (amountToSpawn, concEffect, overrides) => {
 			"flags.charname.summoning.overrides": overrides
 		}
 	}	
-	const combinedMutations = {...defaultMutations, ...overrides.mutations}
+	const combinedMutations = mergeObject(
+		defaultMutations, 
+		overrides.warpGate.mutations, 
+		{overwrite: true, inlace: true, insertKeys: true, insertValues: true}
+	)
 	return combinedMutations
+}
+const getTexturePath = async (actor, choice, strings) => {
+	const defaultIconPath = strings.defaultIcons[strings.choices.indexOf(choice)]
+	return defaultIconPath.length > 0 ? defaultIconPath : actor.prototypeToken.texture.src
 }
 const onPreDeleteToken = async (tokenDoc, config, user) => {
 	const theGmUser = game.users.find(user => user.isTheGM)
@@ -138,10 +155,11 @@ const onPreDeleteToken = async (tokenDoc, config, user) => {
 		amountSpawned, 
 		deleteOverrides, 
 		effectUuid, 
-		optionOverrides
+		optionOverrides,
+		overrides
 	] = await getPreDeleteParams(tokenDoc)
 	if (!deleteOverrides) {
-		useTokenDeleteSequencer(tokenDoc)
+		useTokenDeleteSequencer(tokenDoc, overrides)
 	} else {
 		eval(overrides.delete)(tokenDoc, optionOverrides)
 	}
@@ -244,11 +262,15 @@ const usePostEffectSequencer = async (loc, token, overrides) => {
 		return false
 	}	
 	await warpgate.wait(2100)
-	const sequencerPath = "jb2a.impact.003.green" 
+	const color = overrides?.sequencer?.options?.color ?? "green"
+	const impactNum = overrides?.sequencer?.options?.impactNum1 ?? "003"
+	const sequencerPath = `jb2a.impact.${impactNum}.${color}`
+	const {ms, options} = overrides?.sequencer?.options?.fadeIn 
+		?? {ms: 600, options: {ease: "easeInQuart"}}
 	new Sequence()
 		.animation()
 			.on(token)
-				.fadeIn(700)
+				.fadeIn(ms, options)
 				.opacity(1)
 		.play()
 	new Sequence()
@@ -261,8 +283,8 @@ const usePostEffectSequencer = async (loc, token, overrides) => {
 		.play()		
 }
 const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) => {
-	const sequencer = overrides?.sequencer?.pre ?? ""
-	if (sequencer.length > 0) {
+	const overrideSequencer = overrides?.sequencer?.pre ?? ""
+	if (overrideSequencer.length > 0) {
 		eval(overrides.sequencer.pre)(loc, token)
 		return false
 	}	
@@ -323,18 +345,20 @@ const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) 
 	}
 }
 const useTokenDeleteSequencer = async (token, overrides) => {
-	const sequencer = overrides?.sequencer?.delete ?? ""
-	if (sequencer.length > 0) {
+	const overrideSequencer = overrides?.sequencer?.delete ?? ""
+	if (overrideSequencer.length > 0) {
 		eval(overrides.sequencer.delete)(loc, token)
 		return false
 	}	
 	const color = overrides?.sequencer?.options?.color ?? "green"
-	const impactNum = overrides?.sequencer?.options?.impactNum ?? "003"
+	const impactNum = overrides?.sequencer?.options?.impactNum2 ?? "003"
+	const {ms, options} = overrides?.sequencer?.options?.fadeIn 
+		?? {ms: 600, options: {ease: "easeInQuart"}}
 	const sequencerPath = `jb2a.impact.${impactNum}.${color}`
 	new Sequence()
 		.animation()
 			.on(token)
-				.fadeIn(700)
+			.fadeIn(ms, options)
 				.opacity(1)
 		.play()	
 	new Sequence()
