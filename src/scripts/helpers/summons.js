@@ -97,6 +97,8 @@ const getPreDeleteParams = async (tokenDoc) => {
 	const deleteOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.delete ?? false	
 	const effectUuid = tokenDoc.actor?.flags?.charname?.summoning?.concEffect ?? false
 	const optionOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.options ?? {}	
+	console.log("amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides")
+	console.log(amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides)	
 	return [amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides]
 }
 const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) => {
@@ -150,6 +152,7 @@ const getTexturePath = async (actor, choice, strings) => {
 	return defaultIconPath.length > 0 ? defaultIconPath : actor.prototypeToken.texture.src
 }
 const onPreDeleteToken = async (tokenDoc, config, user) => {
+	console.log("WAHAHAHAHAHAHAHA onPreDeleteToken")
 	const theGmUser = game.users.find(user => user.isTheGM)
 	if (game.users.get(user).id != theGmUser.id) return false	
 	const [
@@ -165,14 +168,18 @@ const onPreDeleteToken = async (tokenDoc, config, user) => {
 		eval(overrides.delete)(tokenDoc, optionOverrides)
 	}
 	if (effectUuid) {
-		let concEffect = await fromUuid(effectUuid)			
+		let concEffect = await fromUuid(effectUuid)
+		console.log("concEffect")
+		console.log(concEffect)
 		let created = concEffect.flags.charname.summoning.totalSpawnCreated
 		let deleted = concEffect.flags.charname.summoning.totalSpawnDeleted		
 		//adding random delay to account for multiple things trying to update all at once
 		//refactor this later to see if you can get it to work by using a set or something
 		const delay = Math.floor(Math.random() * 800 * (created - deleted))
 		await warpgate.wait(delay)			
-		concEffect = await fromUuid(effectUuid)		
+		concEffect = await fromUuid(effectUuid)
+		console.log("live concEffect")
+		console.log(concEffect)		
 		created = concEffect.flags.charname.summoning.totalSpawnCreated
 		deleted = concEffect.flags.charname.summoning.totalSpawnDeleted
 		const newDeleted = deleted + 1

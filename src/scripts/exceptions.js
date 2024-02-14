@@ -24,7 +24,6 @@ export const summonCelestial = {
 						},
 	spawnNames:			["Celestial Avenger Spirit", "Celestial Defender Spirit"]
 }
-//don't forget to move over and fix up for strings/spells.js
 export const summonDraconicSpirit = {
 	circleColors:		["green", "blue", "red", "yellow", "green", "dark_purple", "dark_green", "pink", "dark_yellow", "yellow"],
 	choices:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"],		
@@ -52,19 +51,36 @@ export const summonDraconicSpirit = {
 						],
 	resistHeader:		"Choose your damage resist type",
 	resistValues:		["acid", "cold", "fire", "lightning", "poison", "force", "necrotic", "psychic", "radiant", "thunder"],
-	//sequencerData:		{
-	//						options: {
-	//							circleColor1: "dark_purple",
-	//							circleColor2: "dark_purple",
-	//							circleNum: "02",
-	//							impactColor1: "dark_purple",
-	//							impactColor2: "dark_purple",
-	//							fadeIn: {ms: 400},
-	//							impactNum1: "011",
-	//							impactNum2: "003",
-	//							scale: .15,
-	//							school: "conjuration",
-	//						}
-	//					},
 	spawnNames:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"]
+}
+export const summonElemental = {
+	circleColors:		["yellow", "green", "yellow", "blue"],
+	choices:			["Air Elemental", "Earth Elemental", "Fire Elemental", "Water Elemental"],
+	defaultIcons:		[
+							"images/Tokens/Creatures/Elemental/Air_Large_Elemental_01.webp",
+							"images/Tokens/Creatures/Elemental/Earth_Elemental_Large_Elemental_01.webp",
+							"images/Tokens/Creatures/Elemental/Fire_Elemental_Large_Elemental_A_01.webp",
+							"images/Tokens/Creatures/Elemental/Water_Large_Elemental_A_01.webp"
+						],
+	exceptionActorNames:"all",						
+	impactColors:		["white", "orange", "01", "blue"],
+	impactNums:			["009", "009", "fire", "009"],
+	initHeader:			"What do you want to summon?",
+	spawnNames:			["Air Elemental Spirit", "Earth Elemental Spirit", "Fire Elemental Spirit", "Water Elemental Spirit"]
+}
+export const summonUndead = {
+	baseHp:				[30, 40],
+	circleColors:		["dark_purple", "dark_purple", "dark_purple"],
+	choices:			["Ghostly", "Putrid", "Skeletal"],
+	defaultIcons:		[
+							"images/Tokens/My%20Heroes/jakar_clone.webp",
+							"images/Tokens/My%20Heroes/jakar_clone.webp",
+							"images/Tokens/Adversaries/Skeletons/Skeleton_Caster_Robed_Hooded_Magic_03.webp"
+						],
+	exceptionActorNames:["Jakar", "Jakar (Test)"],						
+	impactColors:		["dark_purple", "dark_purple", "dark_purple"],
+	impactNums:			["003", "003", "003"],						
+	initHeader:			"What do you want to summon?",
+	spawnAttacks:		["Deathly Touch", "Claw of Entropy", "Grave Bolt"],
+	spawnNames:			["Shadow Clone (Ghostly)", "Shadow Clone (Putrid)", "Shadow Clone (Skeletal)"]
 }
