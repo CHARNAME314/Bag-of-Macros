@@ -1,4 +1,4 @@
-import {getDialogueButtonType} from "../../helper-functions.js"
+import {getDialogueButtonType, getStringsOrExceptions} from "../../helper-functions.js"
 import {summonCelestial as exceptionStrings} from "../../exceptions"
 import {summonCelestial as defaultStrings} from "../../strings/spells.js"
 import {summoning} from "../../helpers/summons.js"
@@ -45,8 +45,11 @@ const getSequencerData = async (s) => {
 	if (s.sequencerData) return s.sequencerData
 	return {
 		options: {
+			circleColor1: "blue",
+			circleColor2: "blue",
 			circleNum: "02",
-			color: "blue",
+			impactColor1: "blue",
+			impactColor2: "blue",
 			fadeIn: {ms: 450},
 			impactNum1: "004",
 			impactNum2: "003",
@@ -123,9 +126,7 @@ const getChoiceIconPaths = (choice, s) => {
 	return icon
 }
 const onUse = async ({actor, args, item, token, workflow}) => {
-	const s = exceptionStrings.exceptionActorNames.includes(actor.name) 
-		? exceptionStrings 
-		: defaultStrings
+	const s = await getStringsOrExceptions(actor, defaultStrings, exceptionStrings)
 	const choice = await getDialogueButtonType(
 		s.choices, 
 		{width: "125%", height: "100%"}, 
@@ -142,6 +143,7 @@ const onUse = async ({actor, args, item, token, workflow}) => {
 	] = await getCreateSpawnParams(actor, args, choice.value, s)
 	summoning.createSpawn(actor, choice.value, item, overrides, s, token) 
 }
+
 export const summonCelestial = {
 	onUse
 }

@@ -14,10 +14,6 @@ export const giantInsect = {
 	spawnNames:			["Giant Centipede", "Giant Spider", "Giant Wasp", "Giant Scorpion"]
 }
 export const summonCelestial = {
-	charnamesIcons:		[
-							"images/Tokens/Creatures/Celestial/Solar_Large_Scale200_Celestial_A_11.webp",
-							"images/Tokens/Creatures/Celestial/Planetar_Large_Scale150_Celestial_01.webp"
-						],	
 	choices:			["Celestial Avenger", "Celestial Defender"],
 	defaultIcons:		[
 							"systems/dnd5e/tokens/celestial/SolarBow.webp",
@@ -25,4 +21,14 @@ export const summonCelestial = {
 						],
 	initHeader:			"What do you want to summon?",
 	spawnNames:			["Celestial Avenger Spirit", "Celestial Defender Spirit"]
+}
+export const summonDraconicSpirit = {
+	choices:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"],
+	defaultIcons:		[
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Red_Dragon_Large_Scale200_Spirit_01.webp",
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Bronze_Dragon_Large_Scale200_Spirit_01.webp",
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Gold_Dragon_Large_Scale200_Spirit_01.webp"
+						],	
+	initHeader:			"Which draconic spirit?",
+	spawnNames:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"]
 }

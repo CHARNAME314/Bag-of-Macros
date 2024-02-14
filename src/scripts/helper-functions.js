@@ -138,6 +138,12 @@ export const getSpawnLocation = async (spawnIconPath, size, interval, tokenUuid,
 		return location
 	}
 }
+export const getStringsOrExceptions = async (actor, defaultStrings, exceptionStrings) => {
+	const exceptionActorNames = exceptionStrings?.exceptionActorNames ?? []
+	return  exceptionActorNames.includes(actor.name) || exceptionActorNames == "all"
+		? exceptionStrings 
+		: defaultStrings	
+}
 export const getTemplatesInRange = (templates, gridSize, gridScale, range, x1, y1) => {
 	//gets templates where center of template within range of a cast template
 	return templates.filter(template => {

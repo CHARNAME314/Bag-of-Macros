@@ -101,12 +101,13 @@ const getPreDeleteParams = async (tokenDoc) => {
 }
 const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) => {
 	const circleNum = overrides?.sequencer?.options?.circleNum ?? "02"
-	const color = overrides?.sequencer?.options?.color ?? "green"
+	const color1 = overrides?.sequencer?.options?.circleColor1 ?? "green"
+	const color2 = overrides?.sequencer?.options?.circleColor2 ?? "green"
 	const school = overrides?.sequencer?.options?.school ?? "conjuration"
 	const scale = overrides?.sequencer?.options?.scale ?? .15
 	const originScale = Math.max(originToken.document.height, originToken.document.width) * scale
 	const spawnScale = spawnSize * scale	
-	return [circleNum, color, school, originScale, spawnScale]
+	return [circleNum, color1, color2, school, originScale, spawnScale]
 }
 const getSpawnDetails = async (choice, spawnName, strings) => {
 	const actor = game.actors.find(actor => actor.name == spawnName)
@@ -262,9 +263,9 @@ const usePostEffectSequencer = async (loc, token, overrides) => {
 		return false
 	}	
 	await warpgate.wait(2100)
-	const color = overrides?.sequencer?.options?.color ?? "green"
+	const impactColor = overrides?.sequencer?.options?.impactColor1 ?? "green"
 	const impactNum = overrides?.sequencer?.options?.impactNum1 ?? "003"
-	const sequencerPath = `jb2a.impact.${impactNum}.${color}`
+	const sequencerPath = `jb2a.impact.${impactNum}.${impactColor}`
 	const {ms, options} = overrides?.sequencer?.options?.fadeIn 
 		?? {ms: 600, options: {ease: "easeInQuart"}}
 	new Sequence()
@@ -290,21 +291,22 @@ const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) 
 	}	
 	const [
 		circleNum, 
-		color, 
+		color1, 
+		color2,
 		school, 
 		originScale, 
 		spawnScale
 	] = await getPreEffectsSequencerParams(originToken, overrides, spawnSize)
 	new Sequence()
 		.effect()
-			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.intro.${color}`)
+			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.intro.${color2}`)
 			.scale(spawnScale)
 			.opacity(1)
 			.atLocation(loc)
 			.belowTokens() 
 			.waitUntilFinished(-1150)
 		.effect()
-			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.loop.${color}`)
+			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.loop.${color2}`)
 			.scale(spawnScale)
 			.atLocation(loc)
 			.belowTokens() 
@@ -312,7 +314,7 @@ const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) 
 			.opacity(1)
 			.waitUntilFinished(-1150)
 		.effect()
-			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.outro.${color}`)
+			.file(`jb2a.magic_signs.circle.${circleNum}.${school}.outro.${color2}`)
 			.scale(spawnScale)
 			.opacity(1)
 			.atLocation(loc)
@@ -321,14 +323,14 @@ const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) 
 	if (i == 0) {
 		new Sequence()
 			.effect()
-				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.intro.${color}`)
+				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.intro.${color1}`)
 				.scale(originScale)
 				.opacity(1)
 				.atLocation(originToken)
 				.belowTokens() 
 				.waitUntilFinished(-1150)
 			.effect()
-				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.loop.${color}`)
+				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.loop.${color1}`)
 				.scale(originScale)
 				.atLocation(originToken)
 				.belowTokens() 
@@ -336,7 +338,7 @@ const usePreEffectSequencer = async (i, loc, originToken, spawnSize, overrides) 
 				.opacity(1)
 				.waitUntilFinished(-1150)
 			.effect()
-				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.outro.${color}`)
+				.file(`jb2a.magic_signs.circle.${circleNum}.${school}.outro.${color1}`)
 				.scale(originScale)
 				.opacity(1)
 				.atLocation(originToken)
@@ -350,7 +352,7 @@ const useTokenDeleteSequencer = async (token, overrides) => {
 		eval(overrides.sequencer.delete)(loc, token)
 		return false
 	}	
-	const color = overrides?.sequencer?.options?.color ?? "green"
+	const color = overrides?.sequencer?.options?.impactColor2 ?? "green"
 	const impactNum = overrides?.sequencer?.options?.impactNum2 ?? "003"
 	const {ms, options} = overrides?.sequencer?.options?.fadeIn 
 		?? {ms: 600, options: {ease: "easeInQuart"}}

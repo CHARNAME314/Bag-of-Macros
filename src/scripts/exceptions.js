@@ -10,8 +10,11 @@ export const summonCelestial = {
 	initHeader:			"What do you want to summon?",
 	sequencerData:		{
 							options: {
+								circleColor1: "dark_purple",
+								circleColor2: "dark_purple",
 								circleNum: "02",
-								color: "dark_purple",
+								impactColor1: "dark_purple",
+								impactColor2: "dark_purple",
 								fadeIn: {ms: 400},
 								impactNum1: "011",
 								impactNum2: "003",
@@ -20,4 +23,48 @@ export const summonCelestial = {
 							}
 						},
 	spawnNames:			["Celestial Avenger Spirit", "Celestial Defender Spirit"]
+}
+//don't forget to move over and fix up for strings/spells.js
+export const summonDraconicSpirit = {
+	circleColors:		["green", "blue", "red", "yellow", "green", "dark_purple", "dark_green", "pink", "dark_yellow", "yellow"],
+	choices:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"],		
+	defaultIcons:		[
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Red_Dragon_Large_Scale200_Spirit_01.webp",
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Bronze_Dragon_Large_Scale200_Spirit_01.webp",
+							"images/Tokens/Spirits/Spirit_Creatures/Young_Gold_Dragon_Large_Scale200_Spirit_01.webp"
+						],	
+	exceptionActorNames:"all",
+	initHeader:			"Choose a draconic spirit to summon",
+	impactColors:		["green", "blue", "01", "yellow", "green", "dark_purple", "green", "pinkpurple", "blue", "orange"],
+	impactNums:			["003", "010", "fire", "011", "009", "003", "003", "003", "003", "003"],
+	resistChoices:		["Acid", "Cold", "Fire", "Lightning", "Poison", "Force", "Necrotic", "Psychic", "Radiant", "Thunder"],
+	resistIcons:		[
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-green.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-blue.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-red.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-blue-yellow.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-purple-pink.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-purple.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-green.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-purple-pink.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-blue-yellow.webp",
+							"icons/magic/fire/dagger-rune-enchant-flame-strong-orange.webp"
+						],
+	resistHeader:		"Choose your damage resist type",
+	resistValues:		["acid", "cold", "fire", "lightning", "poison", "force", "necrotic", "psychic", "radiant", "thunder"],
+	//sequencerData:		{
+	//						options: {
+	//							circleColor1: "dark_purple",
+	//							circleColor2: "dark_purple",
+	//							circleNum: "02",
+	//							impactColor1: "dark_purple",
+	//							impactColor2: "dark_purple",
+	//							fadeIn: {ms: 400},
+	//							impactNum1: "011",
+	//							impactNum2: "003",
+	//							scale: .15,
+	//							school: "conjuration",
+	//						}
+	//					},
+	spawnNames:			["Chromatic Draconic Spirit", "Gem Draconic Spirit", "Metallic Draconic Spirit"]
 }

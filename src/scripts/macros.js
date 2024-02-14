@@ -12,6 +12,7 @@ import {protectionFromPoison} from "./macros/spells/protection-from-poison.js"
 import {ringOfSpellStoring} from "./macros/items/ring-of-spell-storing.js"
 import {songOfRest} from "./macros/features/class/bard/song-of-rest.js"
 import {summonCelestial} from "./macros/spells/summon-celestial.js"
+import {summonDraconicSpirit} from "./macros/spells/summon-draconic-spirit.js"
 import {summoning} from "./helpers/summons.js"
 import {staffOfSwarmingInsects} from "./macros/items/staff-of-swarming-insects.js"
 import {wandOfFear} from "./macros/items/wand-of-fear.js"
@@ -31,6 +32,7 @@ export const macros = {
 	ringOfSpellStoring,
 	songOfRest,
 	summonCelestial,
+	summonDraconicSpirit,
 	summoning,
 	staffOfSwarmingInsects,
 	wandOfFear
