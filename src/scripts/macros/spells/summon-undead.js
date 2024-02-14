@@ -32,7 +32,7 @@ const getHp = async (level, spawnName) => {
 const getItemUpdates = async (s, spawnName, originAttack, originDc, level) => {
 	if (spawnName == s.spawnNames[0]) {
 		return {
-			'Deathly Touch': {
+			[s.spawnAttacks[0]]: {
 				'data.damage.parts' : [[`1d6 + 3 + ${level}`, `slashing`]],
 				'data.attackBonus' : `- @mod - @prof + ${originAttack}`,
 				'data.save.dc': `${originDc}`
@@ -40,14 +40,14 @@ const getItemUpdates = async (s, spawnName, originAttack, originDc, level) => {
 		}
 	} else if (spawnName == s.spawnNames[1]) {
 		return {
-			"Rotting Claw": {
+			[s.spawnAttacks[1]]: {
 				'data.damage.parts' : [[`2d4 + 3 + ${level}`, `necrotic`]],
 				'data.attackBonus' : `- @mod - @prof + ${originAttack}`
 			}
 		}
 	} else if (spawnName == s.spawnNames[2]) {
 		return {
-			"Grave Bolt": {
+			[s.spawnAttacks[2]]: {
 				'data.damage.parts' : [[`2d4 + 3 + ${level}`, `necrotic`]],
 				'data.attackBonus' : `- @mod - @prof + ${originAttack}`
 			}
