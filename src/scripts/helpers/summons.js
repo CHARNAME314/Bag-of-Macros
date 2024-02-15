@@ -5,7 +5,6 @@ import {setSpawnedTokensInitiative}  from "../socket-functions.js"
 //review for later:
 //think about adding sounds to the sequencers?
 //see if you can fix the buggy useTokenDeleteSequencer Math.random thing
-//add the linear fade in thing for the sequencers
 
 //leaving as example of how override data is more or less laid out 
 //don't forget to toString() your functions before passing them!
@@ -49,6 +48,7 @@ const createSpawn = async (actor, choice, item, overrides, strings, token) => {
 	if (!concEffect) return false
 	updateInitiatives(spawnUuids, token)
 	updateConcEffect(concEffect, spawnUuids, token)
+	return spawnUuids
 }
 const createSpawnTokens = async (actor, choice, concEffect, item, overrides, strings, token) => {
 	const params = await getSpawnParams(
@@ -91,14 +91,17 @@ const getConcEffect = async (token) => {
 		c.concentrating.includes(effect.name.toLowerCase())
 	)		
 }
+const getDefaultIconPath = async (choice, index, strings) => {
+	const stringIcons = strings?.defaultIcons ?? []
+	if (stringIcons.length > 0) return stringIcons[index]
+	return []
+}
 const getPreDeleteParams = async (tokenDoc) => {
 	const amountSpawned = tokenDoc.actor?.flags?.charname?.summoning?.amountSpawned ?? 1	
 	const overrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides ?? false
 	const deleteOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.delete ?? false	
 	const effectUuid = tokenDoc.actor?.flags?.charname?.summoning?.concEffect ?? false
 	const optionOverrides = tokenDoc.actor?.flags?.charname?.summoning?.overrides?.sequencer?.options ?? {}	
-	console.log("amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides")
-	console.log(amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides)	
 	return [amountSpawned, deleteOverrides, effectUuid, optionOverrides, overrides]
 }
 const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) => {
@@ -113,42 +116,53 @@ const getPreEffectsSequencerParams = async (originToken, overrides, spawnSize) =
 }
 const getSpawnDetails = async (choice, spawnName, strings) => {
 	const actor = game.actors.find(actor => actor.name == spawnName)
-	const iconPath = await getTexturePath(actor, choice, strings)//actor.prototypeToken.texture.src
+	const texturePath = await getTexturePath(actor, choice, strings)
 	const size = Math.max(actor.prototypeToken.height, actor.prototypeToken.height)
-	return [iconPath, size]
+	return [size, texturePath]
 }
 const getSpawnParams = async (actor, choice, concEffect, item, overrides, strings, token) => {
 	const options = overrides?.warpGate?.options ?? {controllingActor: actor}
 	const spawnName = strings.spawnNames[strings.choices.indexOf(choice)]
-	const [iconPath, size] = await getSpawnDetails(choice, spawnName, strings)
+	const [size, texturePath] = await getSpawnDetails(choice, spawnName, strings)
 	const amountToSpawn = await getAmountToSpawn(choice, overrides, strings)
-	const updates = await getSpawnUpdates(amountToSpawn, concEffect, overrides, token)
+	const updates = await getSpawnUpdates(actor, amountToSpawn, concEffect, overrides, texturePath, token)
 	const interval = size % 2 == 1 ? -1 : 1
-	return {amountToSpawn, iconPath, interval, options, size, spawnName, updates}
+	return {amountToSpawn, interval, options, size, spawnName, texturePath, updates}
 }
-const getSpawnUpdates = async (amountToSpawn, concEffect, overrides, token) => {
+const getSpawnUpdates = async (actor, amountToSpawn, concEffect, overrides, texturePath, token) => {
+	const overrideMutations = overrides?.warpGate?.mutations ?? {}
 	const concEffectUuid = !concEffect ? null : concEffect.uuid
+	console.log("getSpawnUpdates texturePath")
+	console.log(texturePath)
 	const defaultMutations = {
 		token: {
 			"alpha": 0,
-			"disposition": token.document.disposition
+			"disposition": token.document.disposition,
+			"texture.src": texturePath, 
 		}, 
 		actor: 
 		{
 			"flags.charname.summoning.amountSpawned": amountToSpawn,
 			"flags.charname.summoning.concEffect": concEffectUuid,
-			"flags.charname.summoning.overrides": overrides
+			"flags.charname.summoning.overrides": overrides,
+			"flags.charname.summoning.sourceActorUuid": actor.uuid
 		}
 	}	
 	const combinedMutations = mergeObject(
 		defaultMutations, 
-		overrides.warpGate.mutations, 
+		overrideMutations, 
 		{overwrite: true, inlace: true, insertKeys: true, insertValues: true}
 	)
 	return combinedMutations
 }
 const getTexturePath = async (actor, choice, strings) => {
-	const defaultIconPath = strings.defaultIcons[strings.choices.indexOf(choice)]
+	const index = strings.choices.indexOf(choice)
+	const stringTextures = strings?.tokenTextures ?? []
+	if (stringTextures.length > 0) {	
+		const stringTexture = stringTextures[index]
+		if (stringTexture.length > 0) return stringTexture
+	}
+	const defaultIconPath = await getDefaultIconPath(choice, index, strings)
 	return defaultIconPath.length > 0 ? defaultIconPath : actor.prototypeToken.texture.src
 }
 const onPreDeleteToken = async (tokenDoc, config, user) => {
@@ -202,11 +216,11 @@ const setSpawnedTokensToActive = async (spawnUuids, token) => {
 const setWarpGateSpawn = async (params, item, overrides, token) => {
 	const {
 		amountToSpawn, 
-		iconPath, 
 		interval, 
 		options, 
 		size, 
 		spawnName, 
+		texturePath, 
 		updates
 	} = params
 	let loc = {}
@@ -214,7 +228,7 @@ const setWarpGateSpawn = async (params, item, overrides, token) => {
 	let callbacks
 	for (let i = 0; i < amountToSpawn; i++) {
 		loc = await getSpawnLocation(
-			iconPath, 
+			texturePath, 
 			size, 
 			interval, 
 			token.document.uuid, 

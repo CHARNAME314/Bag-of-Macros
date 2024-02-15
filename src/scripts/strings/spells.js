@@ -65,13 +65,15 @@ export const summonElemental = {
 	spawnNames:			["Air Elemental Spirit", "Earth Elemental Spirit", "Fire Elemental Spirit", "Water Elemental Spirit"]
 }
 export const summonUndead = {
+	auraNames:			"Festering Aura",
+	auraTemplateSrc:	"modules/JB2A_DnD5e/Library/1st_Level/Fog_Cloud/FogCloud_01_White_800x800.webm",	
 	circleColors:		["green", "green", "green"],
 	choices:			["Ghostly", "Putrid", "Skeletal"],
-	defaultIcons:		[
-							"systems/dnd5e/tokens/undead/Ghost.webp",
-							"systems/dnd5e/tokens/undead/Zombie.webp",
-							"systems/dnd5e/tokens/undead/SkeletonClothes.webp"
-						],
+	//defaultIcons:		[
+	//						"systems/dnd5e/tokens/undead/Ghost.webp",
+	//						"systems/dnd5e/tokens/undead/Zombie.webp",
+	//						"systems/dnd5e/tokens/undead/SkeletonClothes.webp"
+	//					],
 	impactColors:		["green", "green", "green"],
 	impactNums:			["003", "003", "003"],						
 	initHeader:			"What do you want to summon?",
