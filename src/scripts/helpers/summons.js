@@ -168,7 +168,9 @@ const getTexturePath = async (actor, choice, strings) => {
 const onPreDeleteToken = async (tokenDoc, config, user) => {
 	console.log("WAHAHAHAHAHAHAHA onPreDeleteToken")
 	const theGmUser = game.users.find(user => user.isTheGM)
-	if (game.users.get(user).id != theGmUser.id) return false	
+	if (game.users.get(user).id != theGmUser.id) return false
+	const summonFlags = tokenDoc.actor?.flags?.charname?.summoning ?? false
+	if (!summonFlags) return false
 	const [
 		amountSpawned, 
 		deleteOverrides, 
@@ -181,19 +183,16 @@ const onPreDeleteToken = async (tokenDoc, config, user) => {
 	} else {
 		eval(overrides.delete)(tokenDoc, optionOverrides)
 	}
-	if (effectUuid) {
+	if (effectUuid) {	
 		let concEffect = await fromUuid(effectUuid)
-		console.log("concEffect")
-		console.log(concEffect)
+		if (!concEffect) return false
 		let created = concEffect.flags.charname.summoning.totalSpawnCreated
 		let deleted = concEffect.flags.charname.summoning.totalSpawnDeleted		
 		//adding random delay to account for multiple things trying to update all at once
 		//refactor this later to see if you can get it to work by using a set or something
 		const delay = Math.floor(Math.random() * 800 * (created - deleted))
 		await warpgate.wait(delay)			
-		concEffect = await fromUuid(effectUuid)
-		console.log("live concEffect")
-		console.log(concEffect)		
+		concEffect = await fromUuid(effectUuid)	
 		created = concEffect.flags.charname.summoning.totalSpawnCreated
 		deleted = concEffect.flags.charname.summoning.totalSpawnDeleted
 		const newDeleted = deleted + 1

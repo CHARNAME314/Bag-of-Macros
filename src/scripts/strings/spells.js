@@ -65,7 +65,7 @@ export const summonElemental = {
 	spawnNames:			["Air Elemental Spirit", "Earth Elemental Spirit", "Fire Elemental Spirit", "Water Elemental Spirit"]
 }
 export const summonUndead = {
-	auraNames:			"Festering Aura",
+	auraName:			"Festering Aura",
 	auraTemplateSrc:	"modules/JB2A_DnD5e/Library/1st_Level/Fog_Cloud/FogCloud_01_White_800x800.webm",	
 	circleColors:		["green", "green", "green"],
 	choices:			["Ghostly", "Putrid", "Skeletal"],

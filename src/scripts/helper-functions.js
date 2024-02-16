@@ -1,6 +1,12 @@
 import {settings} from "./settings.js"
 import {socket} from "./index.js"
 
+export const createEffect = async (tokenActorUuid, effectData) => {
+	return await MidiQOL.socket().executeAsGM(
+		"createEffects", 
+		{actorUuid: tokenActorUuid, effects: [effectData]}
+	)
+}
 export const checkSelfTarget = async (args, item, originTokenDoc) => {
 	const hasEffects = item.effects.size > 0
 	const isSelfTargetItem = item.target?.type == "self"
@@ -207,8 +213,9 @@ export const removeEffects = async (effectUuids) => {
 	return await MidiQOL.socket().executeAsGM("removeEffects", effectUuids
 )}
 export const setActiveEffects = async (tokenActorUuids, effectData) => {
-	const createEffect = async (tokenActorUuid, effectData) => {return await MidiQOL.socket().executeAsGM("createEffects", {actorUuid: tokenActorUuid, effects: [effectData]})}
-	const [effects] = await Promise.all(tokenActorUuids.map(tokenActorUuid => createEffect(tokenActorUuid, effectData)))
+	const [effects] = await Promise.all(tokenActorUuids.map(tokenActorUuid => {
+		return createEffect(tokenActorUuid, effectData)
+	}))
 	return effects
 }
 export const setActorConcDeletion = async (actor) => {

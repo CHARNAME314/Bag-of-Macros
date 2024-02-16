@@ -1,28 +1,23 @@
-import {getDialogueButtonType, getStringsOrExceptions} from "../../helper-functions.js"
+import {conditionLabels} from "../../constants.js"
+import {getDialogueButtonType, getStringsOrExceptions, setActiveEffects} from "../../helper-functions.js"
 import {summonUndead as exceptionStrings} from "../../exceptions"
 import {summonUndead as defaultStrings} from "../../strings/spells.js"
 import {summoning} from "../../helpers/summons.js"
 
-//todo
-//**I think the attack bonus is being applied incorrectly, fix it
-//continue to check summoned creature attacks
-////festering aura in particular needs to be rearranged
-////might cut a new branch for that one and do some refactoring...  aka move aura functions into their own file 
-//**make new icons for the shadow clones!
-//**split out the icon exception/string thing so that you can have separate exceptions for dialog icon and token icon
-//update string files to point to repos where the actual spell/item/actor names live for localization purposes
-//think dc is still borked a bit
-
-//logic on applying festering aura
-//first thought: have a hook running that looks for the actor name (or maybe the item Festering Aura?) and applies the effect
-//second thought: no hook, if the spawn has the spell then we run another function after creation to give it a template (if token attacher can't) and add macros  
-
 const createAura = async (s, spawnUuid) => {
-	await warpgate.wait(2200)
+	await warpgate.wait(2500)
 	const tokenDoc = await fromUuid(spawnUuid)
-	const auraItem = tokenDoc.actor.items.find(item => s.auraName == item.name)	
+	const preAuraItem = tokenDoc.actor.items.find(item => s.auraName == item.name)
+	const update = {
+		system: { 
+			save: {
+				ability: ""
+			}
+		}
+	}
+	const auraItem = await preAuraItem.update(update)
 	if (!auraItem) return false
-	auraItem.use()
+	await auraItem.use()
 }
 const festeringAuraOnUse = async ({actor, args, token}) => {
 	const summonerActorUuid = actor.flags?.charname?.summoning?.sourceActorUuid ?? false
@@ -30,32 +25,63 @@ const festeringAuraOnUse = async ({actor, args, token}) => {
 	const summonerActor = await fromUuid(summonerActorUuid)
 	const s = await getStringsOrExceptions(summonerActor, defaultStrings, exceptionStrings)
 	const template = await fromUuid(args[0].templateUuid)
-	const spelldc = args[0].rollData.attributes.spelldc
+	const summonerDc = summonerActor.system.attributes.spelldc
 	const castTime = {round: game.combat.current.round, turn: game.combat.current.turn}
-	await auraSequencerEffects(s, template)
-	await template.update({
-		"flags.charname.spelldc": spelldc,
-		"flags.charname.casterTokenId": args[0].tokenUuid,
-		"flags.charname.summonerUuid": token.actor.flags.charname.summonerUuid
-	})
-	await tokenAttacher.attachElementToToken(template, token, suppresNotification=true)
-}
-const getAuraItemData = async (originActor, s) => {
-	const sourceItem = game.items.find(item => item.name == s.auraName)
-	const itemData = mergeObject(duplicate(sourceItem.toObject(false)), {
-		name: s.auraName,
-		type: "weapon",
-		effects: [],
-		flags: {
-			"midi-qol": {
-				onUseMacroName: null
-			},
-		},
+	await setAuraSequencerEffects(s, template)
+	const ability = await getAbility(actor, s)
+	const update = {
+		"flags.charname.festeringAura.spelldc": summonerDc,
+		"flags.charname.festeringAura.casterTokenId": args[0].tokenUuid,
+		"flags.charname.festeringAura.summonerUuid": token.actor.flags.charname.summonerUuid,
+		"flags.charname.festeringAura.castTime": castTime,
 		system: { 
 			save: {
-				dc: originActor.system.attributes.spelldc
+				ability
 			}
 		}
+	}
+	await template.update(update)
+	await tokenAttacher.attachElementToToken(template, token, true)
+}
+const getAbility = async (actor, s) => {
+	const stringAbility = s?.auraAbility ?? null
+	if (stringAbility) return stringAbility
+	const prototypeActor = game.actors.find(ptActor => actor.name == ptActor.name)
+	const protoItemAbility = prototypeActor.items.find(
+		item => item.name == s.auraName
+	)?.system?.save?.ability ?? null
+	if (protoItemAbility) return protoItemAbility
+	const genericItemAbility = game.items.find(
+		item => item.name == s.auraName
+	)?.system?.save?.ability ?? null
+	if (genericItemAbility) return genericItemAbility
+	return "con"
+}
+const getAuraItemData = async (originActor, s, summoner) => {
+	const sourceItem = originActor.items.find(item => s.auraName == item.name)
+	const itemData = mergeObject(duplicate(sourceItem.toObject(false)), {
+		"flags.midi-qol.onUseMacroName": "",
+		system: { 
+			duration: {
+				value: "",
+				units: "inst"
+			},
+			range: {
+				units: "any",
+				value: null
+			},
+			save: {
+				ability: await getAbility(originActor, s),
+				dc: summoner.system.attributes.spelldc,
+				scaling: "flat"
+			},
+			target: {
+				type: "creature",
+				units: "",
+				value: 1,
+				width: null
+			}
+		},
 	}, {overwrite: true, inlace: true, insertKeys: true, insertValues: true})
 	return new CONFIG.Item.documentClass(itemData, { parent: originActor })
 }
@@ -79,22 +105,56 @@ const getCreateSpawnParams = async (actor, args, choice, s) => {
 	const overrides = await getOverrides(choice, mutations, s)	
 	return [mutations, overrides, spawnName]
 }
-const getEffectData = async (originUuid, effectType, spelldc, saveType) => {
+const getEffectData = async (originUuid, effectType, s, spelldc, saveType) => {
+	if (s.isException) {
+		return {
+			name: "Poisoned", 
+			flags: {
+				"flags.charname.festeringAura.active": true,
+				"flags.dae.stackable": "noneName"
+			},
+			icon: "modules/dfreds-convenient-effects/images/poisoned.svg", 
+			originUuid,
+			duration: {rounds:1, turns: 0},
+			changes: [{
+				key: "StatusEffect", mode: CONST.ACTIVE_EFFECT_MODES.CUSTOM, 
+				value: [`Convenient Effect: Poisoned`]
+			}, {
+				key: "macro.execute", mode: CONST.ACTIVE_EFFECT_MODES.OVERRIDE, 
+				value: [`function.CHARNAME.macros.summonUndead.resetConditionImmunities`]
+			}],
+			disabled: false
+		}		
+	}
 	return {
-		label: `Poisoned`, 
-		icon: "modules/dfreds-convenient-effects/images/poisoned.svg", 
-		originUuid,
-		duration: {rounds:1},
-		changes: [{key: "StatusEffect", mode: CONST.ACTIVE_EFFECT_MODES.CUSTOM, value: [`Convenient Effect: Poisoned`]}, {key: "macro.execute", mode: CONST.ACTIVE_EFFECT_MODES.OVERRIDE, value: [`"function.CHARNAME.macros.summonUndead.resetConditionImmunities"`]}],
-		disabled: false
+			name: "Poisoned", 
+			flags: {
+				"flags.charname.festeringAura.active": true,
+				"flags.dae.stackable": "noneName"
+			},
+			icon: "modules/dfreds-convenient-effects/images/poisoned.svg", 
+			originUuid,
+			duration: {rounds:1, turns: 0},
+			changes: [{
+				key: "StatusEffect", mode: CONST.ACTIVE_EFFECT_MODES.CUSTOM, 
+				value: [`Convenient Effect: Poisoned`]
+			}],
+			disabled: false
 	}
 }
-const getFailedSaveTokenDocs = async (originActor, s, tokenDocs) => {
+const getFailedSaveTokenDocs = async (originActor, s, summoner, tokenDocs) => {
 	let options = {}
 	let workflow = []
 	let newFailedSaveTokens = []
-	const item = await getAuraItemData(originActor, s)
-	for (i = 0; i < tokenDocs.length; i++) {
+	const item = await getAuraItemData(originActor, s, summoner)
+	const newItem = await item.update({
+		"flags.templatemacro": null, 
+		"flags.midi-qol": {
+			onUseMacroName: "",
+			onUseMacroParts: null
+		}
+	})
+	for (let i = 0; i < tokenDocs.length; i++) {
 		if (tokenDocs[i].actor.system.traits.ci.value.has("poisoned") && tokenDocs[i].actor.system.details.type.value != "undead") continue
 		options = { showFullCard: false, createWorkflow: true, versatile: false, configureDialog: false, targetUuids: [tokenDocs[i].uuid] }
 		workflow = await MidiQOL.completeItemUse(item, {}, options)
@@ -142,6 +202,15 @@ const getOverrides = async (choice, mutations, s) => {
 		sequencer
 	}
 }
+const getParalyzeEffect = async (item) => {
+	return {
+		name: "Paralyzed",
+		originUuid: item.uuid,
+		duration: {rounds:1, turns: 1},
+		changes: [{key: "StatusEffect", mode: CONST.ACTIVE_EFFECT_MODES.CUSTOM, value: [`Convenient Effect: Paralyzed`]}],
+		disabled: false
+	}	
+}
 const getSequencerData = async (choice, s) => {
 	if (s.sequencerData) return s.sequencerData
 	const circleColor = s.circleColors[s.choices.indexOf(choice)] 
@@ -162,11 +231,6 @@ const getSequencerData = async (choice, s) => {
 		}
 	}
 }
-const getSpawnDc = async (spawnName, originProf) => {
-	const spawnData = game.actors.find(actor => actor.name == spawnName)
-	const spawnMod = spawnData.system.abilities.wis.mod 
-	return originProf + spawnMod + 8
-}
 const getSpawnUpdates = async (actor, args, choice, s, spawnName) => {
 	const [	
 		ac,
@@ -176,7 +240,7 @@ const getSpawnUpdates = async (actor, args, choice, s, spawnName) => {
 		originDc,
 		originLevel, 
 		originProf,
-		spawnDc
+		spawnDcBonus
 	] = await getSpawnParams(actor, args, choice, s, spawnName)
 	return {
 		token: {
@@ -186,7 +250,7 @@ const getSpawnUpdates = async (actor, args, choice, s, spawnName) => {
 			"data.attributes.ac.flat" : ac,
 			"data.attributes.hp" : hp,
 			"data.details.cr" : originLevel,
-			"data.bonuses.spell.dc": spawnDc
+			"data.bonuses.spell.dc": spawnDcBonus
 		},
 		embedded: { 
 			Item: await getItemUpdates(s, spawnName, originAttack, originDc, level)
@@ -201,7 +265,7 @@ const getSpawnParams = async (actor, args, choice, s, spawnName) => {
 	const level = args[0].spellLevel	
 	const ac = 11 + level
 	const hp = await getHp(level, spawnName)
-	const spawnDc = await getSpawnDc(spawnName, originProf)	
+	const spawnDcBonus = originDc - originProf - 8
 	return [	
 		ac,
 		hp,
@@ -210,7 +274,7 @@ const getSpawnParams = async (actor, args, choice, s, spawnName) => {
 		originDc,
 		originLevel, 
 		originProf,
-		spawnDc
+		spawnDcBonus
 	]
 }
 const onUse = async ({actor, args, item, token, workflow}) => {
@@ -239,32 +303,70 @@ const onUse = async ({actor, args, item, token, workflow}) => {
 	) 
 	createAura(s, spawnUuid)
 }
-const onTurnStart = async ({template, token}) => {
+const onTurnStart = async (template, token) => {
+	//passed in from Festering Aura onTurnStart template macro
 	const originItem = await fromUuid(template.flags.dnd5e.origin)
+	if (!originItem) return false
 	const originActor = await fromUuid(originItem.parent.uuid)
-	const s = await getStringsOrExceptions(originActor, defaultStrings, exceptionStrings)
-	const failedSaveTokens = await getFailedSaveTokenDocs(originActor, s, [token.document])
-	const spelldc = template.flags.charname.spelldc
-	if (!failedSaveTokens) return false
-	await setConditionImmunity(failedSaveTokens, "poisoned")
-	await setActiveEffects(failedSaveTokens, originActor, "Poisoned", spelldc, "int")
+	const summoner = await fromUuid(originActor.flags.charname.summoning.sourceActorUuid)
+	if (
+		token.actor.name == originActor.name 
+		|| token.actor.name == summoner.name
+	) return false	
+	const s = await getStringsOrExceptions(summoner, defaultStrings, exceptionStrings)
+	const failedSaveTokens = await getFailedSaveTokenDocs(originActor, s, summoner, [token.document])
+	const spelldc = template.flags.charname.festeringAura.spelldc
+	if (failedSaveTokens.length < 1) return false
+	//at some point refactor setConditionImmunity into a helper function 
+	if (s.isException) {
+		await setConditionImmunity(failedSaveTokens, "poisoned")		
+	}
+	const ability = await getAbility(originActor, s)
+	const failedSaveTokenUuids = failedSaveTokens.map(token => token.actor.uuid)
+	const effectData = await getEffectData(originActor, "Poisoned", s, spelldc, ability)
+	const tokenActor = await fromUuid(failedSaveTokens[0].actor.uuid)
+	const lastEffects = tokenActor.effects.find(effect => effect.name == "poisoned")
+	await tokenActor.createEmbeddedDocuments("ActiveEffect", [effectData])	
 }
 const resetConditionImmunities = async ({args}) => {
-	console.log("AWOOOOGA")
 	const lastArg = args[args.length - 1]
 	const tokenDoc = await fromUuid(lastArg.tokenUuid)
 	if (args[0] == "on") {
-		//const useHookId = Hooks.on("preDeleteActiveEffect", (hookItem, config, options) => {	
-		//	//
-		//})
-		//await DAE.setFlag(tokenDoc.actor, "charname", {festeringAura: {hookId: useHookId}})
 	}  else if (args[0] == "off") {
 		const tokenActorFlags = DAE.getFlag(tokenDoc.actor, "charname")
-		//const hookId = tokenActorFlags.festeringAura.hookId
 		const effectUuids = tokenActorFlags.festeringAura.effectUuids
 		const oldImmunities = tokenActorFlags.festeringAura.oldImmunities
-		if (tokenActorFlags.festeringAura.isPoisonImmune && oldImmunities.length > 0) tokenDoc.actor.update({"system.traits.ci.value": oldImmunities})
-		//Hooks.off("preDeleteActiveEffect", hookId)
+		if (tokenActorFlags.festeringAura.immune == "poison" 
+			&& oldImmunities.length > 0
+		) tokenDoc.actor.update({"system.traits.ci.value": oldImmunities})
+
+	}	
+}
+const rottingClaw = async ({actor, args, item, token, workflow}) => {
+	if (args[0].tag == "OnUse" && workflow.failedSaves.size > 0) {
+		const summonerActorUuid = token.actor?.flags?.charname?.summoning?.sourceActorUuid ?? false
+		if (!summonerActorUuid) return false
+		const summonerActor = await fromUuid(summonerActorUuid)
+		const s = await getStringsOrExceptions(summonerActor, defaultStrings, exceptionStrings)		
+		if (workflow.failedSaves.length < 1) return false
+		const failedSaveUuid = Array.from(workflow.failedSaves)[0]
+		const target = Array.from(workflow.hitTargets)[0]
+		const uuid = target.actor.uuid
+		const hasEffectApplied = target.actor.effects.filter(effect => 
+			conditionLabels['poisoned'].includes(effect.name.toLowerCase())
+		).length > 0
+		const isParalyzeImmune = target.actor.system.traits.ci.value.has('paralyzed')
+		const isUndead = target.actor.system.details.type.value == "undead"		
+		const effect = await getParalyzeEffect(item)
+		if (hasEffectApplied 
+			&& isParalyzeImmune 
+			&& isUndead 
+			&& s.isException
+		) {
+			game.dfreds.effectInterface.addEffect({ effectName: "Entropically Paralyzed", uuid })
+		} else if (hasEffectApplied) {
+			await setActiveEffects([uuid], effect)
+		}
 	}	
 }
 const setAuraSequencerEffects = async (s, template) => {
@@ -282,6 +384,7 @@ const setConditionImmunity = async (tokenDocs, value) => {
 	let values = new Set()
 	let oldValues = []
 	let newValues = []
+	let data = {}
 	for (let i = 0; i < tokenDocs.length; i++) {
 		values = tokenDocs[i].actor.system.traits.ci.value
 		oldValues = Array.from(values)
@@ -291,7 +394,7 @@ const setConditionImmunity = async (tokenDocs, value) => {
 			tokenDocs[i].actor.system.traits.ci.value.clear()
 			data = {actorUuid: tokenDocs[i].actor.uuid, actorData: {"system.traits.ci.value": newValues}}
 			await MidiQOL.socket().executeAsGM("updateActor", data)
-			await DAE.setFlag(tokenDocs[i].actor, "charname", {festeringAura: {isPoisonImmune: true, oldImmunities: oldValues}})	
+			await DAE.setFlag(tokenDocs[i].actor, "charname", {festeringAura: {immune: value, oldImmunities: oldValues}})	
 		}
 	}
 }
@@ -300,11 +403,6 @@ export const summonUndead = {
 	festeringAuraOnUse,
 	onTurnStart,
 	onUse,
-	resetConditionImmunities
+	resetConditionImmunities,
+	rottingClaw
 }
-
-
-
-
-
-

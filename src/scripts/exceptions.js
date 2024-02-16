@@ -69,6 +69,7 @@ export const summonElemental = {
 	spawnNames:			["Air Elemental Spirit", "Earth Elemental Spirit", "Fire Elemental Spirit", "Water Elemental Spirit"]
 }
 export const summonUndead = {
+	auraAbility:		"int",
 	auraName:			"Festering Aura",
 	auraTemplateSrc:	"modules/jb2a_patreon/Library/3rd_Level/Spirit_Guardians/SpiritGuardiansParticles_01_Light_Green_600x600.webm",
 	baseHp:				[30, 40],
@@ -79,9 +80,10 @@ export const summonUndead = {
 							"images/Tokens/My%20Heroes/jakar_clone_green.webp",
 							"images/Tokens/Adversaries/Skeletons/Skeleton_Caster_Robed_Hooded_03.webp"
 						],
-	exceptionActorNames:["Jakar", "Jakar (Test)"],						
+	exceptionActorNames:["Jakar", "Jakar (Test)"],
 	impactColors:		["dark_purple", "dark_purple", "dark_purple"],
-	impactNums:			["003", "003", "003"],						
+	impactNums:			["003", "003", "003"],
+	isException:		true,
 	initHeader:			"What do you want to summon?",
 	spawnAttacks:		["Deathly Touch", "Claw of Entropy", "Grave Bolt"],
 	spawnNames:			["Shadow Clone (Ghostly)", "Shadow Clone (Putrid)", "Shadow Clone (Skeletal)"],
