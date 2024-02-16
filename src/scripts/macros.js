@@ -11,6 +11,7 @@ import {instrumentOfTheBards} from "./macros/items/instrument-of-the-bards.js"
 import {protectionFromPoison} from "./macros/spells/protection-from-poison.js"
 import {ringOfSpellStoring} from "./macros/items/ring-of-spell-storing.js"
 import {songOfRest} from "./macros/features/class/bard/song-of-rest.js"
+import {spellScroll} from "./macros/items/spell-scroll.js"
 import {summonCelestial} from "./macros/spells/summon-celestial.js"
 import {summonDraconicSpirit} from "./macros/spells/summon-draconic-spirit.js"
 import {summonElemental} from "./macros/spells/summon-elemental.js"
@@ -33,6 +34,7 @@ export const macros = {
 	protectionFromPoison,
 	ringOfSpellStoring,
 	songOfRest,
+	spellScroll,
 	summonCelestial,
 	summonDraconicSpirit,
 	summonElemental,

@@ -28,6 +28,10 @@ export const instrumentOfTheBards = {
 	initHeader: 			"Choose a spell to cast!"
 }
 
+export const spellScroll = {
+	scrollLabel:			"Spell Scroll:"
+}
+
 export const staffOfSwarmingInsects = {
 	allChoices: 			["Giant Insect", "Insect Cloud", "Insect Plague", "Melee (1h)", "Melee (2h)"],
 	damageWeaponName:		"Staff of Swarming Insects - Damage",

@@ -14,6 +14,9 @@ Hooks.once("socketlib.ready", () => {
 	socket.register("setSpawnedTokensInitiative", sf.setSpawnedTokensInitiative)
 })
 
+Hooks.on("createItem", (item, config) => {
+	macros.spellScroll.createItem(item, config)
+})
 Hooks.on("dnd5e.restCompleted", (actor, data) => {
 	macros.instrumentOfTheBards.onNewDay(actor, data)
 	macros.songOfRest.main(actor, data)
