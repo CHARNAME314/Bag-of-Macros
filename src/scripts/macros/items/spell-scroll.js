@@ -1,4 +1,5 @@
 import {spellScroll as s} from "../../strings/items.js"
+import {getDialogueButtonType} from "../../helper-functions.js"
 
 const checkSelfTarget = async (args, item, originTokenDoc) => {
 	const hasEffects = item.effects.size > 0
@@ -22,12 +23,17 @@ const createCastWorkflow = async (item, tokenActor) => {
 	return [tempItem, workflow]
 }
 const createItem = async (item, config) => {
-	if (item.name.slice(0,s.scrollLabel.length) != s.scrollLabel) return false
+	const label = await getLabel(item)
+	if (item.name.slice(0,label.length) != label) return false
 	const defaultItem = game.items.find(defItem => 
-		defItem.name == item.name.slice(s.scrollLabel.length + 1)
+		defItem.name == item.name.slice(label.length + 1)
 	)
 	const liveItem = await fromUuid(item.uuid)
+	const initChoice = await getDialogueButtonType(s.labels, {width: 400, height: "100%"}, s.initHeader, getInitIconPaths, 60, 60)
+	const type = initChoice.value == s.labels[0] ? s.labels[0] : s.labels[1]
+	const newLabel = initChoice.value + " " + defaultItem.name
 	await liveItem.update({
+		"name": newLabel,
 		"flags.midi-qol.onUseMacroName": "function.CHARNAME.macros.spellScroll.onUse",
 		"flags.autoanimations": defaultItem.flags.autoanimations
 	})
@@ -66,6 +72,16 @@ const getDeleteUuidEffects = async (actor, item) => {
 	}
 	return await getSelfEffects(item) ?? []
 }
+const getInitIconPaths = (buttonName) => {
+	switch (buttonName) {
+		case s.labels[0]:
+			return "icons/magic/defensive/shield-barrier-flaming-diamond-teal-purple.webp"
+			break
+		case s.labels[1]:
+			return "icons/magic/defensive/shield-barrier-flaming-pentagon-teal-purple.webp"
+			break	
+	}
+}
 const getItemParams = async (item) => {
 	const level = item.system.level
 	if (level == 0 || level == 1 || level == 2) {
@@ -80,6 +96,15 @@ const getItemParams = async (item) => {
 		return {dc: 19, attackBonus: 11}
 	} else {
 		return {dc: 13, attackBonus: 5}
+	}
+}
+const getLabel = async (item) => {
+	if (item.name.slice(0,s.labels[0].length) == s.labels[0]) {
+		return s.labels[0]
+	} else if (item.name.slice(0,s.labels[1].length) == s.labels[1]) {
+		return s.labels[1]
+	} else {
+		return false
 	}
 }
 const getSelfEffects = async (item) => {	
@@ -123,8 +148,9 @@ const getUpdatedMacroNames = async (macroNames, activation) => {
 	return update
 }
 const onUse = async ({args, item}) => {
+	const label = await getLabel(item)
 	const spell = game.items.find(spell => 
-		spell.name == item.name.slice(s.scrollLabel.length + 1)
+		spell.name == item.name.slice(label.length + 1)
 	)
 	const tokenActor = (await fromUuid(args[0].tokenUuid)).actor
 	const updates = await createCastWorkflow(spell, tokenActor)

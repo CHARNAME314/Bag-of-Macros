@@ -29,7 +29,8 @@ export const instrumentOfTheBards = {
 }
 
 export const spellScroll = {
-	scrollLabel:			"Spell Scroll:"
+	labels:					["Spell Scroll:", "Spellwrought Tattoo:"],
+	initHeader:				"Which Type of Item?"
 }
 
 export const staffOfSwarmingInsects = {
