@@ -64,6 +64,16 @@ export const summonElemental = {
 	initHeader:			"What do you want to summon?",
 	spawnNames:			["Air Elemental Spirit", "Earth Elemental Spirit", "Fire Elemental Spirit", "Water Elemental Spirit"]
 }
+export const summonIceWolves = {
+	choices:			["Ice Wolf"],
+	circleColors:		["blue"],
+	circleSchool:		["conjuration"],
+	defaultIcons:		["images/Tokens/Creatures/Monstrosity/Winter_Wolf_Large_Scale150_Monstrosity_05.webp"],
+	impactColors:		["blue"],
+	impactNums:			["011"],
+	preEffectSeqPath:	"modules/jb2a_patreon/Library/2nd_Level/Misty_Step/MistyStep_01_Regular_Orange_400x400.webm",
+	spawnNames:			["Ice Wolf"]
+}
 export const summonUndead = {
 	auraName:			"Festering Aura",
 	auraTemplateSrc:	"modules/JB2A_DnD5e/Library/1st_Level/Fog_Cloud/FogCloud_01_White_800x800.webm",	

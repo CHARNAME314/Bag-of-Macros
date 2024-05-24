@@ -15,6 +15,7 @@ import {spellScroll} from "./macros/items/spell-scroll.js"
 import {summonCelestial} from "./macros/spells/summon-celestial.js"
 import {summonDraconicSpirit} from "./macros/spells/summon-draconic-spirit.js"
 import {summonElemental} from "./macros/spells/summon-elemental.js"
+import {summonIceWolves} from "./macros/actions/creature/summon-ice-wolves.js"
 import {summonUndead} from "./macros/spells/summon-undead.js"
 import {summoning} from "./helpers/summons.js"
 import {staffOfSwarmingInsects} from "./macros/items/staff-of-swarming-insects.js"
@@ -39,6 +40,7 @@ export const macros = {
 	summonDraconicSpirit,
 	summonElemental,
 	summonUndead,
+	summonIceWolves,
 	summoning,
 	staffOfSwarmingInsects,
 	wandOfFear
