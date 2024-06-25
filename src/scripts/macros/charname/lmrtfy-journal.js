@@ -231,3 +231,8 @@ const main = async (customPageId) => {
 }
 
 main(customPageId)
+
+
+export const lmrtfyJournal = {
+	"main": main
+}

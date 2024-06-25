@@ -8,6 +8,7 @@ import {giantInsect} from "./macros/spells/giant-insect.js"
 import {hordePassive} from "./macros/features/horde-passive.js"
 import {insectCloud} from "./macros/features/misc/insect-cloud.js"
 import {instrumentOfTheBards} from "./macros/items/instrument-of-the-bards.js"
+import {lmrtfyJournal} from "./macros/charname/lmrtfy-journal.js"
 import {protectionFromPoison} from "./macros/spells/protection-from-poison.js"
 import {ringOfSpellStoring} from "./macros/items/ring-of-spell-storing.js"
 import {songOfRest} from "./macros/features/class/bard/song-of-rest.js"
@@ -32,6 +33,7 @@ export const macros = {
 	hordePassive,
 	insectCloud,
 	instrumentOfTheBards,
+	lmrtfyJournal,
 	protectionFromPoison,
 	ringOfSpellStoring,
 	songOfRest,
