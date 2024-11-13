@@ -1,6 +1,7 @@
 import {cloudSpellNames} from "../../constants.js"
 
 const getAoeOverlapPerc = async (args) => {
+	if (!args[0].templateId) return 0
 	const creatureCoords = await getCreatureCoords(args[0].actor.token)
 	const templateCoords = await getTemplateCoords(args[0].templateId) ?? false
 	if (!templateCoords) return 0
@@ -53,15 +54,16 @@ const setHpUpdateEffects = async (actor, hpDamage, hordeItem, hordeItemUses, hor
 }
 const setLiveTokenDocUpdates = async (texture, hordeItem, hordeItemUsesMax, multiplier, liveTokenDoc, shouldReduce, tokenSizeNum) => {
 		hordeItem.update({"system.uses.value": hordeItemUsesMax * multiplier})
+		await warpgate.wait(4000)	
+		setSequencer(liveTokenDoc)
+		await warpgate.wait(200)
 		if (tokenSizeNum > 2 && shouldReduce) {
-			await warpgate.wait(4000)	
-			setSequencer(liveTokenDoc)
-			await warpgate.wait(200)	
-			if (liveTokenDoc.actor.system.traits.size != "grg" && liveTokenDoc.width <= 4 && liveTokenDoc.width <= 4) {
+			if (liveTokenDoc.actor.system.traits.size != "grg" && liveTokenDoc.width <= 4 && liveTokenDoc.width <= 4 ) {
 				liveTokenDoc.actor.update({"system.traits.size": Object.keys(CONFIG.DND5E.actorSizes)[tokenSizeNum - 1]})
 			}
 			liveTokenDoc.update({"width": liveTokenDoc.width - 1, "height": liveTokenDoc.width - 1})	
 		}
+
 		liveTokenDoc.update({"texture.src": texture})
 }
 const setPostDamageUpdates = async (actor, newHpDamage, liveTokenDoc, hordeItem, hordeItemUsesMax) => {
