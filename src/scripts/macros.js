@@ -1,5 +1,6 @@
 import {auraOfPurity} from "./macros/spells/aura-of-purity.js"
 import {blight} from "./macros/spells/blight.js"
+import {chefRest} from "./macros/features/misc/chef-rest.js"
 import {clairvoyance} from "./macros/spells/clairvoyance.js"
 import {daylight} from "./macros/spells/daylight.js"
 import {dispelMagic} from "./macros/spells/dispel-magic.js"
@@ -26,6 +27,7 @@ export const macros = {
 	auraOfPurity,
 	blight,
 	clairvoyance,
+	chefRest,
 	daylight,
 	dispelMagic,
 	feyAncestry,

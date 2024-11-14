@@ -17,10 +17,20 @@ const getOriginBardScale = (effectOriginUuid) => {
 }
 const main = (actor, data) => {
 	const songEffects = actor.effects.filter(effect => effect.name == "Song of Rest")
-	if (data.dhd < 0 && songEffects.length > 0) {
+	const songActorTokens = canvas.tokens.objects.children.filter(child => {		
+		if (!child.document.actor.system.scale.bard) return false
+		return child.document.actor.items.find(item => item.name == "Song of Rest") && child.document.disposition == 1
+	})
+	const highestBardScale = songActorTokens.reduce((highestScale, token) => {	
+		if (token.document.actor.system.scale.bard["song-of-rest"].faces > highestScale) { 
+			return token.document.actor.system.scale.bard["song-of-rest"].faces
+		} else {
+			return highestScale
+		}
+	}, 0)
+	if (data.dhd < 0 && songEffects.length > 0) {	
 		songEffects.map(effect => {
-			const originBardScale = getOriginBardScale(effect.origin)
-			const item = getItemData(actor, originBardScale)
+			const item = getItemData(actor, highestBardScale)
 			const token = MidiQOL.tokenForActor(actor.uuid)
 			const options = { showFullCard: false, createWorkflow: true, versatile: false, configureDialog: false, targetUuids: [token.document.uuid] }
 			MidiQOL.completeItemUse(item, {}, options)	
