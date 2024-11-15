@@ -121,9 +121,12 @@ const main = async ([abilities, skills, title, canFailChecks, outcomes, pageName
 	setHooks(actorIds, allowsTake10, data, outcomes, pageName, passiveFloor, request.id) 
 }
 const sendChatMessages = (content, userId) => {
+	console.log("userId")
+	console.log(userId)
+	const userName = (game.users.find(user => user.id == userId)).name
 	ChatMessage.create({
 		content: content,
-		whisper: ChatMessage.getWhisperRecipients('Darien'),
+		whisper: ChatMessage.getWhisperRecipients(userName),
 	})
 }
 const setHooks = async (actorIds, allowsTake10, data, outcomes, pageName, passiveFloor, rollId) => {
@@ -133,9 +136,11 @@ const setHooks = async (actorIds, allowsTake10, data, outcomes, pageName, passiv
 	messageArr.shift()
 	const ourMessage = messageArr.join(" ")	
 	const messageHookId = Hooks.on("createChatMessage", (message, config, userId) => {		
+		const lmrtfyMessage = message?.flags?.lmrtfy?.message ?? false
+		if (!lmrtfyMessage) return false
 		//give the players 30 seconds to answer the roll request or the request becomes invalid
 		if (
-			message.flags.lmrtfy.message == ourMessage
+			lmrtfyMessage == ourMessage
 			&& data.skills.find(s => s == message.flags.dnd5e.roll.skillId) 
 			//leaving out saving throws for now b/c I'd rather use item/trap macros for that
 			&& ["check", "skill"].includes(message.flags.dnd5e.roll.type)
